@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>SmartGrow — Nutrient Dosing System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ═══════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════ */
+:root {
+  --accent:      #00ffb3;
+  --accent-glow: rgba(0,255,179,0.22);
+  --accent-soft: rgba(0,255,179,0.07);
+  --danger:      #ff4466;
+  --danger-glow: rgba(255,68,102,0.22);
+  --gold:        #ffc87a;
+  --blue:        #60b8ff;
+  --blue-glow:   rgba(96,184,255,0.18);
+  --purple:      #b87cff;
+  --tr:          0.38s cubic-bezier(0.4,0,0.2,1);
+  --tf:          0.07s ease;
+  --r:           22px;
+  --rsm:         13px;
+  --rpill:       999px;
+}
+
+/* ── DARK ── */
+[data-theme="dark"] {
+  --bg:        #06080d;
+  --bg2:       #0a0e16;
+  --hdr:       rgba(6,8,13,0.85);
+  --card:      rgba(255,255,255,0.032);
+  --card-hi:   rgba(255,255,255,0.058);
+  --card-bd:   rgba(255,255,255,0.072);
+  --card-bdhi: rgba(0,255,179,0.24);
+  --glass:     rgba(255,255,255,0.038);
+  --glass2:    rgba(255,255,255,0.018);
+  --inset:     rgba(0,0,0,0.45);
+  --text:      #e8eef8;
+  --t2:        rgba(232,238,248,0.62);
+  --t3:        rgba(232,238,248,0.32);
+  --t4:        rgba(232,238,248,0.16);
+  --grid:      rgba(255,255,255,0.018);
+  --shim:      rgba(255,255,255,0.11);
+  --shim2:     rgba(255,255,255,0.055);
+  --shadow:    rgba(0,0,0,0.6);
+  --shadow2:   rgba(0,0,0,0.3);
+  --tog-bg:    rgba(255,255,255,0.07);
+  --tog-bd:    rgba(255,255,255,0.12);
+  --log-bg:    rgba(0,0,0,0.5);
+  --env-bg:    rgba(96,184,255,0.04);
+  --env-bd:    rgba(96,184,255,0.14);
+  --sc:        rgba(0,255,179,0.18);
+  --sched-row-even: rgba(255,255,255,0.018);
+  --sched-row-hover: rgba(0,255,179,0.04);
+  --sched-th:  rgba(255,255,255,0.028);
+}
+
+/* ── LIGHT ── */
+[data-theme="light"] {
+  --bg:        #e8eef7;
+  --bg2:       #dde4ef;
+  --hdr:       rgba(255,255,255,0.9);
+  --card:      rgba(255,255,255,0.75);
+  --card-hi:   rgba(255,255,255,0.94);
+  --card-bd:   rgba(0,0,0,0.075);
+  --card-bdhi: rgba(0,180,120,0.28);
+  --glass:     rgba(255,255,255,0.55);
+  --glass2:    rgba(255,255,255,0.35);
+  --inset:     rgba(0,0,0,0.055);
+  --text:      #0c1420;
+  --t2:        rgba(12,20,32,0.6);
+  --t3:        rgba(12,20,32,0.38);
+  --t4:        rgba(12,20,32,0.2);
+  --grid:      rgba(0,0,0,0.04);
+  --shim:      rgba(255,255,255,0.98);
+  --shim2:     rgba(255,255,255,0.6);
+  --shadow:    rgba(0,0,0,0.1);
+  --shadow2:   rgba(0,0,0,0.06);
+  --tog-bg:    rgba(0,0,0,0.065);
+  --tog-bd:    rgba(0,0,0,0.1);
+  --log-bg:    rgba(0,0,0,0.04);
+  --env-bg:    rgba(96,184,255,0.05);
+  --env-bd:    rgba(96,184,255,0.16);
+  --sc:        rgba(0,160,100,0.22);
+  --sched-row-even: rgba(0,0,0,0.018);
+  --sched-row-hover: rgba(0,160,100,0.05);
+  --sched-th:  rgba(0,0,0,0.03);
+}
+
+/* ═══════════════════════════════════════
+   RESET & BODY
+═══════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+
+body{
+  font-family:'Outfit',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+  position:relative;
+  transition:background var(--tr),color var(--tr);
+}
+
+/* ambient glow + gradient base */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 70% 55% at 8%  5%,  rgba(0,255,179,0.07)  0%,transparent 55%),
+    radial-gradient(ellipse 55% 45% at 92% 90%, rgba(96,184,255,0.06)  0%,transparent 55%),
+    radial-gradient(ellipse 45% 55% at 55% 45%, rgba(184,124,255,0.03) 0%,transparent 60%),
+    linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+  pointer-events:none;z-index:0;
+}
+[data-theme="light"] body::after{opacity:0.5;}
+
+/* grid texture */
+.grid-tex{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    linear-gradient(var(--grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:52px 52px;
+}
+
+/* ═══════════════════════════════════════
+   HEADER
+═══════════════════════════════════════ */
+.header{
+  position:sticky;top:0;z-index:200;
+  padding:16px 52px;
+  display:flex;justify-content:space-between;align-items:center;gap:16px;
+  border-bottom:1px solid var(--card-bd);
+  backdrop-filter:blur(32px) saturate(1.8);
+  -webkit-backdrop-filter:blur(32px) saturate(1.8);
+  background:var(--hdr);
+  transition:background var(--tr),border-color var(--tr);
+}
+.header::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--shim) 40%,var(--shim) 60%,transparent);
+  opacity:.5;
+}
+
+.header-left{display:flex;align-items:center;gap:16px;min-width:0;}
+
+.logo-bg{
+  width:44px;height:44px;border-radius:14px;flex-shrink:0;
+  background:conic-gradient(from 135deg,var(--accent),var(--blue),var(--purple),var(--accent));
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.15),0 0 28px var(--accent-glow),0 6px 20px rgba(0,0,0,.3);
+  animation:logo-glow 5s ease-in-out infinite;
+}
+@keyframes logo-glow{
+  0%,100%{box-shadow:0 0 0 1px rgba(255,255,255,.15),0 0 24px var(--accent-glow),0 6px 20px rgba(0,0,0,.3);}
+  50%    {box-shadow:0 0 0 1px rgba(255,255,255,.15),0 0 40px var(--accent-glow),0 6px 20px rgba(0,0,0,.3);}
+}
+
+.brand-name{
+  font-size:18px;font-weight:800;letter-spacing:-0.01em;
+  background:linear-gradient(90deg,var(--text) 0%,var(--t2) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.brand-sub{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9.5px;letter-spacing:0.18em;text-transform:uppercase;color:var(--t3);margin-top:2px;
+}
+
+.header-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+
+/* status badge */
+.status-badge{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 16px;border-radius:var(--rpill);
+  border:1px solid var(--card-bd);background:var(--glass);
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.05em;
+  color:var(--t3);transition:all .4s ease;white-space:nowrap;
+}
+.status-badge.connected{
+  border-color:rgba(0,255,179,.3);background:rgba(0,255,179,.07);
+  color:var(--accent);box-shadow:0 0 16px rgba(0,255,179,.1);
+}
+.status-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--t4);flex-shrink:0;transition:all .4s ease;
+}
+.status-badge.connected .status-dot{
+  background:var(--accent);box-shadow:0 0 8px var(--accent);
+  animation:dot-pulse 2.2s ease-in-out infinite;
+}
+@keyframes dot-pulse{
+  0%,100%{box-shadow:0 0 5px var(--accent);}
+  50%    {box-shadow:0 0 14px var(--accent),0 0 22px var(--accent-glow);}
+}
+
+/* theme toggle */
+.theme-toggle{
+  width:54px;height:30px;border-radius:var(--rpill);flex-shrink:0;
+  border:1px solid var(--tog-bd);background:var(--tog-bg);
+  cursor:pointer;display:flex;align-items:center;padding:4px;
+  transition:all var(--tr);outline:none;
+}
+.theme-toggle:hover{border-color:rgba(0,255,179,.38);box-shadow:0 0 14px rgba(0,255,179,.12);}
+.toggle-knob{
+  width:22px;height:22px;border-radius:50%;pointer-events:none;
+  background:linear-gradient(135deg,#cdd8f0,#fff);
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+  display:flex;align-items:center;justify-content:center;font-size:12px;
+  transition:transform var(--tr),background var(--tr);transform:translateX(0);
+}
+[data-theme="light"] .toggle-knob{
+  transform:translateX(24px);
+  background:linear-gradient(135deg,#ffd54f,#ff9800);
+}
+
+/* ═══════════════════════════════════════
+   SECTION DIVIDER
+═══════════════════════════════════════ */
+.sec{
+  position:relative;z-index:10;
+  padding:32px 52px 0;
+  display:flex;align-items:center;gap:14px;
+}
+.sec-label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:0.22em;text-transform:uppercase;
+  color:var(--t4);white-space:nowrap;
+}
+.sec-line{flex:1;height:1px;background:linear-gradient(90deg,var(--card-bd),transparent);}
+
+/* ═══════════════════════════════════════
+   GRID
+═══════════════════════════════════════ */
+.container{
+  position:relative;z-index:10;
+  padding:18px 52px 0;
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:16px;
+}
+.pump-card{grid-column:span 2;}
+.plug-card{grid-column:span 3;}
+.env-card {grid-column:span 6;}
+
+/* ═══════════════════════════════════════
+   CARD
+═══════════════════════════════════════ */
+.card{
+  background:var(--card);border:1px solid var(--card-bd);
+  border-radius:var(--r);padding:26px;
+  backdrop-filter:blur(28px) saturate(1.3);
+  -webkit-backdrop-filter:blur(28px) saturate(1.3);
+  position:relative;overflow:hidden;
+  transition:background var(--tr),border-color var(--tr),transform .28s ease,box-shadow .28s ease;
+  animation:rise .6s ease both;
+}
+.card:nth-child(1){animation-delay:.04s}
+.card:nth-child(2){animation-delay:.09s}
+.card:nth-child(3){animation-delay:.14s}
+.card:nth-child(4){animation-delay:.19s}
+.card:nth-child(5){animation-delay:.24s}
+.card:nth-child(6){animation-delay:.29s}
+
+@keyframes rise{
+  from{opacity:0;transform:translateY(20px) scale(.98);}
+  to  {opacity:1;transform:translateY(0)    scale(1);}
+}
+
+/* crystal top edge */
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 5%,var(--shim) 35%,var(--shim2) 65%,transparent 95%);
+}
+/* inner light sheen */
+.card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:50%;
+  background:linear-gradient(180deg,var(--shim2) 0%,transparent 100%);
+  opacity:.28;pointer-events:none;border-radius:var(--r) var(--r) 0 0;
+}
+
+.card:hover{
+  background:var(--card-hi);border-color:var(--card-bdhi);
+  transform:translateY(-4px);
+  box-shadow:0 24px 60px var(--shadow),0 0 0 1px rgba(0,255,179,.08),0 0 40px rgba(0,255,179,.05);
+}
+
+/* left stripe */
+.stripe{
+  position:absolute;top:0;left:0;width:2.5px;height:100%;
+  border-radius:var(--r) 0 0 var(--r);
+}
+.pump-card .stripe{background:linear-gradient(180deg,var(--accent),transparent 80%);}
+.plug-card .stripe{background:linear-gradient(180deg,var(--gold),transparent 80%);}
+.env-card  .stripe{background:linear-gradient(180deg,var(--blue),transparent 80%);}
+
+/* card header */
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:10px;}
+.card-hd-left{display:flex;align-items:center;gap:11px;min-width:0;}
+
+.card-icon{
+  width:36px;height:36px;border-radius:11px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+}
+.pump-card .card-icon{
+  background:linear-gradient(135deg,rgba(0,255,179,.14),rgba(0,255,179,.03));
+  border:1px solid rgba(0,255,179,.2);
+  box-shadow:0 0 16px rgba(0,255,179,.08),inset 0 1px 0 rgba(255,255,255,.1);
+}
+.plug-card .card-icon{
+  background:linear-gradient(135deg,rgba(255,200,122,.14),rgba(255,200,122,.03));
+  border:1px solid rgba(255,200,122,.2);
+  box-shadow:0 0 16px rgba(255,200,122,.08),inset 0 1px 0 rgba(255,255,255,.1);
+}
+.env-card .card-icon{
+  background:linear-gradient(135deg,rgba(96,184,255,.14),rgba(96,184,255,.03));
+  border:1px solid rgba(96,184,255,.2);
+  box-shadow:0 0 16px rgba(96,184,255,.08),inset 0 1px 0 rgba(255,255,255,.1);
+}
+
+.card h3{font-size:14.5px;font-weight:700;letter-spacing:.01em;color:var(--text);white-space:nowrap;transition:color var(--tr);}
+
+.badge{
+  font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.14em;
+  text-transform:uppercase;padding:3px 9px;border-radius:var(--rpill);
+  border:1px solid var(--card-bd);color:var(--t3);background:var(--glass2);
+  white-space:nowrap;flex-shrink:0;transition:all var(--tr);
+}
+
+.divider{height:1px;margin:2px 0 16px;background:linear-gradient(90deg,var(--card-bd),transparent 80%);}
+
+/* ═══════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════ */
+.btn-row  {display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:13px;}
+.plug-btns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;}
+
+.btn{
+  padding:11px 10px;border-radius:var(--rsm);
+  border:1px solid var(--card-bd);background:var(--glass);
+  font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;
+  letter-spacing:.07em;cursor:pointer;width:100%;color:var(--t2);
+  text-transform:uppercase;
+  transition:all var(--tf);
+  position:relative;overflow:hidden;
+  box-shadow:inset 0 1px 0 var(--shim2);
+}
+
+/* crystal sweep shimmer */
+.btn::before{
+  content:'';position:absolute;
+  top:-50%;left:-60%;width:40%;height:200%;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.08),transparent);
+  transform:skewX(-15deg);transition:left .55s ease;pointer-events:none;
+}
+.btn:hover::before{left:130%;}
+
+.btn:hover{
+  border-color:rgba(0,255,179,.25);color:var(--text);
+  transform:translateY(-1px);
+  box-shadow:0 6px 22px var(--shadow2),inset 0 1px 0 rgba(255,255,255,.12);
+  background:rgba(0,255,179,.05);
+}
+.btn:active{transform:translateY(0) scale(.97);}
+
+.btn-full{width:100%;padding:12px;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;}
+
+/* ACTIVE (ON) — green crystal glow — instant snap */
+.btn-active{
+  transition: all 0.06s ease !important;
+  background:linear-gradient(135deg,rgba(0,255,179,.22),rgba(0,255,179,.07)) !important;
+  border-color:rgba(0,255,179,.55) !important;
+  color:var(--accent) !important;
+  box-shadow:
+    0 0 0 2px rgba(0,255,179,.18),
+    0 0 22px rgba(0,255,179,.32),
+    0 0 48px rgba(0,255,179,.10),
+    inset 0 1px 0 rgba(0,255,179,.3),
+    inset 0 0 20px rgba(0,255,179,.07) !important;
+  text-shadow:0 0 14px rgba(0,255,179,.7);
+}
+
+/* DANGER (OFF) — red crystal glow — instant snap */
+.btn-danger-active{
+  transition: all 0.06s ease !important;
+  background:linear-gradient(135deg,rgba(255,68,102,.22),rgba(255,68,102,.07)) !important;
+  border-color:rgba(255,68,102,.55) !important;
+  color:var(--danger) !important;
+  box-shadow:
+    0 0 0 2px rgba(255,68,102,.16),
+    0 0 22px rgba(255,68,102,.3),
+    0 0 44px rgba(255,68,102,.08),
+    inset 0 1px 0 rgba(255,68,102,.25) !important;
+  text-shadow:0 0 12px rgba(255,68,102,.6);
+}
+
+/* Add Now / Dispense */
+.btn-dispense{
+  background:linear-gradient(135deg,rgba(0,255,179,.1),rgba(96,184,255,.06));
+  border-color:rgba(0,255,179,.22);color:var(--accent);
+}
+.btn-dispense:hover{
+  background:linear-gradient(135deg,rgba(0,255,179,.18),rgba(96,184,255,.1)) !important;
+  border-color:rgba(0,255,179,.4) !important;color:var(--accent) !important;
+  box-shadow:0 8px 28px rgba(0,255,179,.14) !important;
+}
+
+/* ═══════════════════════════════════════
+   INPUT
+═══════════════════════════════════════ */
+.field{margin-bottom:4px;}
+.field-label{
+  font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--t4);margin-bottom:5px;display:block;
+  transition:color var(--tr);
+}
+
+input{
+  width:100%;padding:11px 14px;border-radius:var(--rsm);
+  border:1px solid var(--card-bd);background:var(--inset);
+  color:var(--text);font-family:'JetBrains Mono',monospace;
+  font-size:13px;letter-spacing:.03em;outline:none;
+  transition:all .25s ease;-moz-appearance:textfield;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.03);
+}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;}
+input::placeholder{color:var(--t4);font-size:12px;}
+input:focus{
+  border-color:rgba(0,255,179,.4);
+  box-shadow:0 0 0 3px rgba(0,255,179,.1),inset 0 2px 6px rgba(0,0,0,.1);
+  background:rgba(0,255,179,.03);
+}
+[data-theme="light"] input:focus{background:rgba(255,255,255,.95);}
+
+/* ═══════════════════════════════════════
+   ENV CARD
+═══════════════════════════════════════ */
+.env-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:4px;}
+
+.env-stat{
+  background:var(--env-bg);border:1px solid var(--env-bd);
+  border-radius:16px;padding:22px;position:relative;overflow:hidden;
+  transition:all var(--tr);
+}
+.env-stat::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(96,184,255,.28),transparent);
+}
+.env-stat::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:45%;
+  background:linear-gradient(180deg,rgba(255,255,255,.04) 0%,transparent 100%);
+  pointer-events:none;border-radius:16px 16px 0 0;
+}
+.env-stat:hover{
+  background:rgba(96,184,255,.07);border-color:rgba(96,184,255,.26);
+  transform:translateY(-2px);box-shadow:0 12px 36px var(--shadow2);
+}
+
+.env-icon{font-size:22px;margin-bottom:10px;display:block;}
+.env-label{
+  font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--t3);margin-bottom:10px;display:block;
+}
+.env-value{
+  font-size:34px;font-weight:800;letter-spacing:-0.02em;line-height:1;
+  background:linear-gradient(135deg,var(--blue) 0%,var(--accent) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.env-unit{font-size:14px;font-weight:500;color:var(--t3);margin-left:3px;-webkit-text-fill-color:var(--t3);}
+.env-stat.water .env-value{font-size:22px;background:none;-webkit-text-fill-color:var(--t2);color:var(--t2);}
+
+/* ═══════════════════════════════════════
+   AUTOMATION SCHEDULER CARD
+═══════════════════════════════════════ */
+.schedule-wrap{
+  position:relative;z-index:10;
+  padding:18px 52px 0;
+}
+
+.schedule-card{
+  background:var(--card);border:1px solid var(--card-bd);
+  border-radius:var(--r);padding:28px;
+  backdrop-filter:blur(28px) saturate(1.3);
+  -webkit-backdrop-filter:blur(28px) saturate(1.3);
+  position:relative;overflow:hidden;
+  transition:background var(--tr),border-color var(--tr),transform .28s ease,box-shadow .28s ease;
+  animation:rise .6s .34s ease both;
+}
+/* crystal top edge */
+.schedule-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 5%,var(--shim) 35%,var(--shim2) 65%,transparent 95%);
+}
+/* inner light sheen */
+.schedule-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:50%;
+  background:linear-gradient(180deg,var(--shim2) 0%,transparent 100%);
+  opacity:.28;pointer-events:none;border-radius:var(--r) var(--r) 0 0;
+}
+.schedule-card:hover{
+  background:var(--card-hi);border-color:var(--card-bdhi);
+  transform:translateY(-3px);
+  box-shadow:0 24px 60px var(--shadow),0 0 0 1px rgba(184,124,255,.08),0 0 40px rgba(184,124,255,.05);
+}
+
+/* purple stripe for scheduler */
+.schedule-card .stripe{
+  position:absolute;top:0;left:0;width:2.5px;height:100%;
+  border-radius:var(--r) 0 0 var(--r);
+  background:linear-gradient(180deg,var(--purple),transparent 80%);
+}
+
+/* card icon for scheduler */
+.sched-card-icon{
+  width:36px;height:36px;border-radius:11px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  background:linear-gradient(135deg,rgba(184,124,255,.14),rgba(184,124,255,.03));
+  border:1px solid rgba(184,124,255,.2);
+  box-shadow:0 0 16px rgba(184,124,255,.08),inset 0 1px 0 rgba(255,255,255,.1);
+}
+
+/* ── Schedule Table ── */
+.sched-table-wrap{
+  overflow-x:auto;
+  border-radius:14px;
+  border:1px solid var(--card-bd);
+  background:var(--inset);
+  margin-bottom:20px;
+  scrollbar-width:thin;scrollbar-color:var(--sc) transparent;
+}
+.sched-table-wrap::-webkit-scrollbar{height:4px;}
+.sched-table-wrap::-webkit-scrollbar-track{background:transparent;}
+.sched-table-wrap::-webkit-scrollbar-thumb{background:var(--sc);border-radius:4px;}
+
+.sched-table{
+  width:100%;border-collapse:collapse;
+  font-family:'JetBrains Mono',monospace;font-size:11.5px;
+}
+.sched-table thead tr{
+  background:var(--sched-th);
+  border-bottom:1px solid var(--card-bd);
+}
+.sched-table th{
+  padding:11px 16px;text-align:left;
+  font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--t4);font-weight:500;white-space:nowrap;
+}
+.sched-table td{
+  padding:11px 16px;color:var(--t2);
+  border-bottom:1px solid var(--card-bd);
+  vertical-align:middle;white-space:nowrap;
+  transition:background .18s ease;
+}
+.sched-table tbody tr:last-child td{border-bottom:none;}
+.sched-table tbody tr:nth-child(even) td{background:var(--sched-row-even);}
+.sched-table tbody tr:hover td{background:var(--sched-row-hover);}
+
+/* device chip */
+.sched-device{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 9px;border-radius:var(--rpill);
+  font-size:10px;font-weight:600;letter-spacing:.06em;
+}
+.sched-device.pump{
+  background:rgba(0,255,179,.1);border:1px solid rgba(0,255,179,.22);color:var(--accent);
+}
+.sched-device.plug{
+  background:rgba(255,200,122,.1);border:1px solid rgba(255,200,122,.22);color:var(--gold);
+}
+
+/* action chip */
+.sched-action{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:var(--rpill);
+  font-size:10px;letter-spacing:.05em;
+}
+.sched-action.dose{
+  background:rgba(96,184,255,.1);border:1px solid rgba(96,184,255,.2);color:var(--blue);
+}
+.sched-action.on{
+  background:rgba(0,255,179,.08);border:1px solid rgba(0,255,179,.2);color:var(--accent);
+}
+.sched-action.off{
+  background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.18);color:var(--danger);
+}
+
+/* time display */
+.sched-time{
+  font-size:13px;font-weight:600;letter-spacing:.04em;
+  color:var(--text);
+}
+
+/* amount */
+.sched-amount{
+  font-size:12px;color:var(--blue);font-weight:500;
+}
+
+/* delete btn */
+.btn-sched-del{
+  width:28px;height:28px;border-radius:8px;
+  border:1px solid rgba(255,68,102,.22);
+  background:rgba(255,68,102,.06);
+  color:var(--danger);font-size:13px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .18s ease;flex-shrink:0;
+}
+.btn-sched-del:hover{
+  background:rgba(255,68,102,.16);border-color:rgba(255,68,102,.45);
+  box-shadow:0 0 14px rgba(255,68,102,.2);transform:scale(1.08);
+}
+.btn-sched-del:active{transform:scale(.95);}
+
+/* empty state */
+.sched-empty{
+  padding:32px 16px;text-align:center;
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--t4);letter-spacing:.1em;
+}
+.sched-empty-icon{font-size:28px;margin-bottom:10px;opacity:.5;}
+
+/* ── Add Schedule Form ── */
+.sched-form-title{
+  font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--purple);margin-bottom:14px;display:block;
+  opacity:.85;
+}
+
+.sched-form{
+  background:rgba(184,124,255,.03);
+  border:1px solid rgba(184,124,255,.1);
+  border-radius:16px;padding:20px;
+}
+.sched-form-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr 1fr auto;
+  gap:10px;
+  align-items:end;
+}
+
+.sched-select{
+  width:100%;padding:11px 14px;border-radius:var(--rsm);
+  border:1px solid var(--card-bd);background:var(--inset);
+  color:var(--text);font-family:'JetBrains Mono',monospace;
+  font-size:12px;letter-spacing:.02em;outline:none;
+  transition:all .25s ease;cursor:pointer;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.03);
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(232,238,248,0.3)' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 12px center;
+  padding-right:32px;
+}
+.sched-select:focus{
+  border-color:rgba(184,124,255,.4);
+  box-shadow:0 0 0 3px rgba(184,124,255,.1),inset 0 2px 6px rgba(0,0,0,.1);
+}
+[data-theme="light"] .sched-select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(12,20,32,0.4)' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+}
+.sched-select option{background:var(--bg2);color:var(--text);}
+
+.sched-input{
+  width:100%;padding:11px 14px;border-radius:var(--rsm);
+  border:1px solid var(--card-bd);background:var(--inset);
+  color:var(--text);font-family:'JetBrains Mono',monospace;
+  font-size:13px;letter-spacing:.03em;outline:none;
+  transition:all .25s ease;-moz-appearance:textfield;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.03);
+}
+.sched-input::-webkit-outer-spin-button,.sched-input::-webkit-inner-spin-button{-webkit-appearance:none;}
+.sched-input::placeholder{color:var(--t4);font-size:11px;}
+.sched-input:focus{
+  border-color:rgba(184,124,255,.4);
+  box-shadow:0 0 0 3px rgba(184,124,255,.1),inset 0 2px 6px rgba(0,0,0,.1);
+}
+/* time input clock icon colour fix */
+.sched-input[type="time"]::-webkit-calendar-picker-indicator{
+  filter:invert(1);opacity:.3;cursor:pointer;
+}
+[data-theme="light"] .sched-input[type="time"]::-webkit-calendar-picker-indicator{
+  filter:invert(0);opacity:.4;
+}
+
+.btn-sched-add{
+  padding:11px 18px;border-radius:var(--rsm);
+  border:1px solid rgba(184,124,255,.3);
+  background:linear-gradient(135deg,rgba(184,124,255,.14),rgba(184,124,255,.04));
+  color:var(--purple);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:.08em;cursor:pointer;text-transform:uppercase;
+  white-space:nowrap;height:44px;
+  position:relative;overflow:hidden;
+  transition:all .22s ease;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+.btn-sched-add::before{
+  content:'';position:absolute;
+  top:-50%;left:-60%;width:40%;height:200%;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.08),transparent);
+  transform:skewX(-15deg);transition:left .55s ease;pointer-events:none;
+}
+.btn-sched-add:hover::before{left:130%;}
+.btn-sched-add:hover{
+  border-color:rgba(184,124,255,.55);
+  background:linear-gradient(135deg,rgba(184,124,255,.22),rgba(184,124,255,.08));
+  box-shadow:0 6px 22px rgba(184,124,255,.2),inset 0 1px 0 rgba(255,255,255,.1);
+  transform:translateY(-1px);
+}
+.btn-sched-add:active{transform:translateY(0) scale(.97);}
+
+/* refresh btn */
+.btn-sched-refresh{
+  padding:5px 13px;border-radius:var(--rsm);
+  border:1px solid rgba(184,124,255,.2);
+  background:rgba(184,124,255,.06);
+  color:var(--purple);font-family:'JetBrains Mono',monospace;font-size:9.5px;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+  transition:all .2s ease;display:flex;align-items:center;gap:6px;
+}
+.btn-sched-refresh:hover{
+  border-color:rgba(184,124,255,.38);background:rgba(184,124,255,.12);
+  box-shadow:0 4px 14px rgba(184,124,255,.15);
+}
+.btn-sched-refresh .spin{
+  display:inline-block;font-size:12px;
+  transition:transform .6s ease;
+}
+.btn-sched-refresh:hover .spin{transform:rotate(180deg);}
+
+/* count badge */
+.sched-count{
+  font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.14em;
+  text-transform:uppercase;padding:3px 9px;border-radius:var(--rpill);
+  border:1px solid rgba(184,124,255,.2);
+  color:var(--purple);background:rgba(184,124,255,.07);
+  white-space:nowrap;flex-shrink:0;
+}
+
+/* section label */
+.sched-section-label{
+  font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--t4);margin-bottom:10px;display:block;
+}
+
+/* ── Day Picker ── */
+.day-picker{
+  display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;
+}
+.day-btn{
+  width:36px;height:36px;border-radius:10px;
+  border:1px solid var(--card-bd);background:var(--inset);
+  color:var(--t3);font-family:'JetBrains Mono',monospace;
+  font-size:10px;font-weight:600;letter-spacing:.02em;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .18s ease;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.12);
+}
+.day-btn:hover{
+  border-color:rgba(184,124,255,.3);color:var(--text);
+  background:rgba(184,124,255,.06);
+}
+.day-btn.day-active{
+  background:linear-gradient(135deg,rgba(184,124,255,.22),rgba(184,124,255,.08));
+  border-color:rgba(184,124,255,.5);color:var(--purple);
+  box-shadow:0 0 12px rgba(184,124,255,.18),inset 0 1px 0 rgba(255,255,255,.1);
+}
+
+/* days display chips in table */
+.sched-days{display:flex;gap:3px;flex-wrap:wrap;}
+.sched-day-chip{
+  width:22px;height:18px;border-radius:4px;
+  font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;
+  letter-spacing:.02em;
+}
+.sched-day-chip.active{
+  background:rgba(184,124,255,.15);border:1px solid rgba(184,124,255,.25);color:var(--purple);
+}
+.sched-day-chip.inactive{
+  background:var(--inset);border:1px solid var(--card-bd);color:var(--t4);opacity:.5;
+}
+
+/* enabled/disabled chip in table */
+.sched-status{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:var(--rpill);
+  font-size:9px;font-weight:600;letter-spacing:.06em;
+}
+.sched-status.on{
+  background:rgba(0,255,179,.1);border:1px solid rgba(0,255,179,.22);color:var(--accent);
+}
+.sched-status.off{
+  background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.18);color:var(--danger);
+}
+
+/* ═══════════════════════════════════════
+   TERMINAL
+═══════════════════════════════════════ */
+.terminal-wrap{position:relative;z-index:10;padding:0 52px 60px;}
+
+.terminal{
+  background:var(--card);border:1px solid var(--card-bd);
+  border-radius:var(--r);padding:24px;
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  position:relative;overflow:hidden;
+  animation:rise .6s .32s ease both;
+  transition:background var(--tr),border-color var(--tr);
+}
+.terminal::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--shim),transparent);opacity:.5;
+}
+
+.term-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;}
+.term-left{display:flex;align-items:center;gap:12px;}
+.term-dots{display:flex;gap:7px;}
+.td{width:11px;height:11px;border-radius:50%;}
+.td-r{background:#ff5f57;box-shadow:0 0 6px rgba(255,95,87,.4);}
+.td-y{background:#febc2e;box-shadow:0 0 6px rgba(254,188,46,.4);}
+.td-g{background:#28c840;box-shadow:0 0 6px rgba(40,200,64,.4);}
+.term-title{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);}
+
+.log-box{
+  height:180px;overflow-y:auto;padding:14px 16px;
+  background:var(--log-bg);border-radius:14px;
+  font-size:11.5px;font-family:'JetBrains Mono',monospace;
+  border:1px solid var(--card-bd);
+  scrollbar-width:thin;scrollbar-color:var(--sc) transparent;
+  transition:background var(--tr);
+}
+.log-box::-webkit-scrollbar{width:4px;}
+.log-box::-webkit-scrollbar-track{background:transparent;}
+.log-box::-webkit-scrollbar-thumb{background:var(--sc);border-radius:4px;}
+
+.log-entry{display:flex;gap:10px;align-items:flex-start;margin-bottom:7px;line-height:1.6;}
+.log-t{color:var(--t4);flex-shrink:0;font-size:10.5px;}
+.log-a{color:var(--accent);flex-shrink:0;font-size:13px;line-height:1.4;}
+.log-m   { color:var(--t2); }
+.log-m strong { color:var(--accent); font-weight:700; }
+
+.term-foot{display:flex;justify-content:flex-end;margin-top:14px;}
+.btn-clear{
+  padding:8px 18px;background:var(--glass2);
+  border:1px solid var(--card-bd);color:var(--t3);
+  border-radius:var(--rsm);font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  cursor:pointer;transition:all .22s ease;
+}
+.btn-clear:hover{border-color:rgba(255,68,102,.35);color:var(--danger);background:rgba(255,68,102,.06);}
+
+/* ═══════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════ */
+@media(max-width:1280px){
+  .container{grid-template-columns:repeat(4,1fr);padding:18px 36px 0;gap:14px;}
+  .pump-card{grid-column:span 2;}
+  .plug-card{grid-column:span 2;}
+  .env-card {grid-column:span 4;}
+  .header{padding:16px 36px;}
+  .sec{padding:28px 36px 0;}
+  .terminal-wrap{padding:0 36px 52px;}
+  .schedule-wrap{padding:18px 36px 0;}
+  .sched-form-grid{grid-template-columns:1fr 1fr 1fr auto;gap:9px;}
+  .sched-form-grid .sched-amount-col{grid-column:span 1;}
+}
+@media(max-width:960px){
+  .container{grid-template-columns:repeat(2,1fr);padding:16px 24px 0;gap:14px;}
+  .pump-card{grid-column:span 1;}
+  .plug-card{grid-column:span 1;}
+  .env-card {grid-column:span 2;}
+  .header{padding:14px 24px;}
+  .sec{padding:24px 24px 0;}
+  .terminal-wrap{padding:0 24px 44px;}
+  .schedule-wrap{padding:16px 24px 0;}
+  .env-grid{grid-template-columns:repeat(3,1fr);}
+  .brand-name{font-size:16px;}
+  .status-badge{padding:7px 12px;font-size:10px;}
+  .sched-form-grid{grid-template-columns:1fr 1fr;gap:9px;}
+  .sched-form-grid .btn-sched-add{grid-column:span 2;}
+}
+@media(max-width:660px){
+  .container{grid-template-columns:1fr 1fr;padding:14px 16px 0;gap:12px;}
+  .plug-card{grid-column:span 1;}
+  .env-card {grid-column:span 2;}
+  .header{padding:13px 16px;flex-wrap:wrap;gap:10px;}
+  .brand-sub{display:none;}
+  .sec{padding:20px 16px 0;}
+  .terminal-wrap{padding:0 16px 36px;}
+  .schedule-wrap{padding:14px 16px 0;}
+  .card{padding:20px 16px;}
+  .schedule-card{padding:20px 16px;}
+  .env-grid{grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .env-value{font-size:26px;}
+  .theme-toggle{width:48px;height:27px;}
+  .toggle-knob{width:19px;height:19px;font-size:10px;}
+  [data-theme="light"] .toggle-knob{transform:translateX(21px);}
+  .sched-form-grid{grid-template-columns:1fr 1fr;gap:8px;}
+  .sched-form-grid .btn-sched-add{grid-column:span 2;}
+}
+@media(max-width:480px){
+  .container{grid-template-columns:1fr;}
+  .plug-card{grid-column:span 1;}
+  .env-card {grid-column:span 1;}
+  .env-grid{grid-template-columns:1fr;}
+  .header-right{gap:8px;}
+  .status-text{display:none;}
+  .status-badge{padding:8px;border-radius:50%;}
+  .card{padding:18px 14px;}
+  .btn{font-size:10.5px;padding:10px 7px;}
+  .sched-form-grid{grid-template-columns:1fr;gap:8px;}
+  .sched-form-grid .btn-sched-add{grid-column:span 1;}
+}
+</style>
+
+<!-- ── TEXT VISIBILITY OVERRIDES (size + contrast only, no layout change) ── -->
+<style>
+/* Boost muted text opacity in dark mode */
+[data-theme="dark"] { --t2: rgba(232,238,248,0.82); --t3: rgba(232,238,248,0.52); --t4: rgba(232,238,248,0.30); }
+[data-theme="light"] { --t2: rgba(12,20,32,0.78);   --t3: rgba(12,20,32,0.55);   --t4: rgba(12,20,32,0.36); }
+
+/* Mono labels (field labels, section labels, table headers, badges) */
+.field-label        { font-size:10px; }
+.sec-label          { font-size:10.5px; color:var(--t3); }
+.badge              { font-size:9.5px;  color:var(--t2); }
+.brand-sub          { font-size:10px;   color:var(--t3); }
+.env-label          { font-size:10px;   color:var(--t2); }
+.sched-table th     { font-size:10px;   color:var(--t3); }
+.sched-section-label{ font-size:10px;   color:var(--t3); }
+.sched-form-title   { font-size:10px;   opacity:1; color:var(--purple); }
+.sched-empty        { font-size:12px;   color:var(--t3); }
+.term-title         { font-size:12px;   color:var(--t2); }
+
+/* Button & card body text */
+.btn      { font-size:12px; color:var(--t2); }
+.sched-table td { font-size:12.5px; color:var(--t2); }
+.log-t    { font-size:11px; color:var(--t3); }
+.log-m    { color:var(--t2); }
+.card h3  { font-size:15px; }
+
+/* Input placeholders more visible */
+input::placeholder, .sched-input::placeholder { color:var(--t3); font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<div class="grid-tex"></div>
+
+<!-- ══ HEADER ══ -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo-bg">🌱</div>
+    <div>
+      <div class="brand-name">SmartGrow</div>
+      <div class="brand-sub">Nutrient Dosing System · Tank 001</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="status" class="status-badge disconnected">
+      <span class="status-dot"></span>
+      <span class="status-text">Connecting...</span>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark">
+      <div class="toggle-knob" id="toggleKnob">🌙</div>
+    </button>
+  </div>
+</div>
+
+<!-- ══ PUMPS ══ -->
+<div class="sec"><span class="sec-label">Pump Controllers</span><div class="sec-line"></div></div>
+
+<div class="container">
+
+  <!-- Pump 1 -->
+  <div class="card pump-card">
+    <div class="stripe"></div>
+    <div class="card-hd">
+      <div class="card-hd-left">
+        <div class="card-icon">⟳</div>
+        <h3>Pump 1</h3>
+      </div>
+      <span class="badge">Nutrient A</span>
+    </div>
+    <div class="divider"></div>
+    <div class="btn-row">
+      <button id="p1_on"  class="btn" onclick="prime(1,'on')">▶ Prime ON</button>
+      <button id="p1_off" class="btn" onclick="prime(1,'off')">■ Prime OFF</button>
+    </div>
+    <div class="field">
+      <span class="field-label">Dose Volume (ml)</span>
+      <input id="ml1" placeholder="Enter ml">
+    </div>
+    <button class="btn btn-full btn-dispense" onclick="addNow(1)">⊕ Add Now</button>
+  </div>
+
+  <!-- Pump 2 -->
+  <div class="card pump-card">
+    <div class="stripe"></div>
+    <div class="card-hd">
+      <div class="card-hd-left">
+        <div class="card-icon">⟳</div>
+        <h3>Pump 2</h3>
+      </div>
+      <span class="badge">Nutrient B</span>
+    </div>
+    <div class="divider"></div>
+    <div class="btn-row">
+      <button id="p2_on"  class="btn" onclick="prime(2,'on')">▶ Prime ON</button>
+      <button id="p2_off" class="btn" onclick="prime(2,'off')">■ Prime OFF</button>
+    </div>
+    <div class="field">
+      <span class="field-label">Dose Volume (ml)</span>
+      <input id="ml2" placeholder="Enter ml">
+    </div>
+    <button class="btn btn-full btn-dispense" onclick="addNow(2)">⊕ Add Now</button>
+  </div>
+
+  <!-- Pump 3 -->
+  <div class="card pump-card">
+    <div class="stripe"></div>
+    <div class="card-hd">
+      <div class="card-hd-left">
+        <div class="card-icon">⟳</div>
+        <h3>Pump 3</h3>
+      </div>
+      <span class="badge">pH Adjust</span>
+    </div>
+    <div class="divider"></div>
+    <div class="btn-row">
+      <button id="p3_on"  class="btn" onclick="prime(3,'on')">▶ Prime ON</button>
+      <button id="p3_off" class="btn" onclick="prime(3,'off')">■ Prime OFF</button>
+    </div>
+    <div class="field">
+      <span class="field-label">Dose Volume (ml)</span>
+      <input id="ml3" placeholder="Enter ml">
+    </div>
+    <button class="btn btn-full btn-dispense" onclick="addNow(3)">⊕ Add Now</button>
+  </div>
+
+  <!-- AC Plug 1 -->
+  <div class="card plug-card">
+    <div class="stripe"></div>
+    <div class="card-hd">
+      <div class="card-hd-left">
+        <div class="card-icon">⚡</div>
+        <h3>AC Plug 1</h3>
+      </div>
+      <span class="badge">Power</span>
+    </div>
+    <div class="divider"></div>
+    <div class="plug-btns">
+      <button id="plug1_on"  class="btn" onclick="plug(1,'on')">◉ ON</button>
+      <button id="plug1_off" class="btn" onclick="plug(1,'off')">○ OFF</button>
+    </div>
+  </div>
+
+  <!-- AC Plug 2 -->
+  <div class="card plug-card">
+    <div class="stripe"></div>
+    <div class="card-hd">
+      <div class="card-hd-left">
+        <div class="card-icon">⚡</div>
+        <h3>AC Plug 2</h3>
+      </div>
+      <span class="badge">Power</span>
+    </div>
+    <div class="divider"></div>
+    <div class="plug-btns">
+      <button id="plug2_on"  class="btn" onclick="plug(2,'on')">◉ ON</button>
+      <button id="plug2_off" class="btn" onclick="plug(2,'off')">○ OFF</button>
+    </div>
+  </div>
+
+  <!-- Environment Status -->
+  <div class="card env-card">
+    <div class="stripe"></div>
+    <div class="card-hd">
+      <div class="card-hd-left">
+        <div class="card-icon">🌡</div>
+        <h3>Environment Status</h3>
+      </div>
+      <span class="badge">Live Sensors</span>
+    </div>
+    <div class="divider"></div>
+    <div class="env-grid">
+      <div class="env-stat">
+        <span class="env-icon">🌡️</span>
+        <span class="env-label">Temperature</span>
+        <div><span class="env-value" id="tempVal">--</span><span class="env-unit">°C</span></div>
+      </div>
+      <div class="env-stat">
+        <span class="env-icon">💧</span>
+        <span class="env-label">Humidity</span>
+        <div><span class="env-value" id="humVal">--</span><span class="env-unit">%</span></div>
+      </div>
+      <div class="env-stat water">
+        <span class="env-icon">🪣</span>
+        <span class="env-label">Water Level</span>
+        <div><span class="env-value" id="waterVal">--</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ AUTOMATION SCHEDULER ══ -->
+<div class="sec" style="padding-top:28px;">
+  <span class="sec-label">Automation Scheduler</span>
+  <div class="sec-line"></div>
+</div>
+
+<div class="schedule-wrap">
+  <div class="schedule-card">
+    <div class="stripe"></div>
+
+    <!-- Card Header -->
+    <div class="card-hd">
+      <div class="card-hd-left">
+        <div class="sched-card-icon">⏱</div>
+        <h3>Automation Scheduler</h3>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="sched-count" id="schedCount">0 Schedules</span>
+        <button class="btn-sched-refresh" onclick="requestSchedules()">
+          <span class="spin">↻</span> Refresh
+        </button>
+      </div>
+    </div>
+    <div class="divider"></div>
+
+    <!-- Schedule Table -->
+    <span class="sched-section-label">Active Schedules</span>
+    <div class="sched-table-wrap">
+      <table class="sched-table">
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Time</th>
+            <th>Days</th>
+            <th>Action</th>
+            <th>Amount</th>
+            <th>Delete</th>
+          </tr>
+        </thead>
+        <tbody id="schedTableBody">
+          <tr>
+            <td colspan="6">
+              <div class="sched-empty">
+                <div class="sched-empty-icon">📋</div>
+                <div>No schedules configured — add one below</div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Add Schedule Form -->
+    <span class="sched-form-title">＋ Add New Schedule</span>
+    <div class="sched-form">
+      <div class="sched-form-grid">
+
+        <!-- Device Select -->
+        <div>
+          <span class="field-label">Device</span>
+          <select id="schedDevice" class="sched-select" onchange="onSchedDeviceChange()">
+            <optgroup label="Pumps">
+              <option value="1">Pump 1 (Nutrient A)</option>
+              <option value="2">Pump 2 (Nutrient B)</option>
+              <option value="3">Pump 3 (pH Adjust)</option>
+            </optgroup>
+            <optgroup label="AC Plugs">
+              <option value="4">Plug 1</option>
+              <option value="5">Plug 2</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Time -->
+        <div>
+          <span class="field-label">Time (24h)</span>
+          <input id="schedTime" type="time" class="sched-input" placeholder="HH:MM">
+        </div>
+
+        <!-- Action -->
+        <div>
+          <span class="field-label">Action</span>
+          <select id="schedAction" class="sched-select" onchange="onSchedActionChange()">
+            <option value="dose">Dose</option>
+          </select>
+        </div>
+
+        <!-- Amount (ml) — shown for pumps/dose only -->
+        <div id="schedAmountWrap" class="sched-amount-col">
+          <span class="field-label">Amount (ml)</span>
+          <input id="schedAmount" type="number" class="sched-input" placeholder="e.g. 20" min="1" max="100">
+        </div>
+
+        <!-- Add Button -->
+        <div>
+          <button class="btn-sched-add" onclick="addSchedule()">⊕ Add</button>
+        </div>
+
+      </div>
+
+      <!-- Day Picker Row -->
+      <div style="margin-top:14px;">
+        <span class="field-label">Repeat Days</span>
+        <div class="day-picker" id="dayPicker">
+          <button type="button" class="day-btn day-active" data-bit="0" onclick="toggleDay(this)">Sun</button>
+          <button type="button" class="day-btn day-active" data-bit="1" onclick="toggleDay(this)">Mon</button>
+          <button type="button" class="day-btn day-active" data-bit="2" onclick="toggleDay(this)">Tue</button>
+          <button type="button" class="day-btn day-active" data-bit="3" onclick="toggleDay(this)">Wed</button>
+          <button type="button" class="day-btn day-active" data-bit="4" onclick="toggleDay(this)">Thu</button>
+          <button type="button" class="day-btn day-active" data-bit="5" onclick="toggleDay(this)">Fri</button>
+          <button type="button" class="day-btn day-active" data-bit="6" onclick="toggleDay(this)">Sat</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ TERMINAL ══ -->
+<div class="terminal-wrap">
+  <div class="sec" style="padding:26px 0 16px;">
+    <span class="sec-label">System Activity</span><div class="sec-line"></div>
+  </div>
+  <div class="terminal">
+    <div class="term-hd">
+      <div class="term-left">
+        <div class="term-dots">
+          <div class="td td-r"></div>
+          <div class="td td-y"></div>
+          <div class="td td-g"></div>
+        </div>
+        <span class="term-title">Terminal Output</span>
+      </div>
+    </div>
+    <div class="log-box" id="log"></div>
+    <div class="term-foot">
+      <button class="btn-clear" onclick="clearLog()">✕ Clear Log</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+/* ─── THEME ─── */
+const htmlEl = document.documentElement;
+const knob   = document.getElementById('toggleKnob');
+
+function setTheme(t){
+  htmlEl.setAttribute('data-theme',t);
+  knob.textContent = t==='dark'?'🌙':'☀️';
+  localStorage.setItem('sg-theme',t);
+}
+function toggleTheme(){
+  setTheme(htmlEl.getAttribute('data-theme')==='dark'?'light':'dark');
+}
+(function(){
+  const s=localStorage.getItem('sg-theme');
+  if(s){setTheme(s);return;}
+  if(window.matchMedia('(prefers-color-scheme:light)').matches) setTheme('light');
+})();
+
+/* ─── HELPER: only glow the pressed button, other stays plain ─── */
+function setGlow(onId, offId, state){
+  const onBtn  = document.getElementById(onId);
+  const offBtn = document.getElementById(offId);
+  if(!onBtn || !offBtn) return;
+  onBtn.classList.remove('btn-active','btn-danger-active');
+  offBtn.classList.remove('btn-active','btn-danger-active');
+  if(state==='on'){
+    onBtn.classList.add('btn-active');
+  } else {
+    offBtn.classList.add('btn-danger-active');
+  }
+}
+
+/* ─── LOG TYPES ─── */
+const LOG_ICONS = { pump:'🔵', plug:'⚡', ml:'💧', sys:'✅', env:'🌡', sched:'⏱' };
+
+function logAction(type, msg){
+  const el = document.getElementById('log');
+  const e  = document.createElement('div');
+  e.className = 'log-entry';
+  e.innerHTML = `
+    <span class="log-t">${new Date().toLocaleTimeString()}</span>
+    <span class="log-a">${LOG_ICONS[type]||'›'}</span>
+    <span class="log-m">${msg}</span>`;
+  el.appendChild(e);
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog(){document.getElementById('log').innerHTML='';}
+
+/* legacy alias used by connect handler */
+function log(msg){ logAction('sys', msg); }
+
+/* ─── MQTT ─── */
+const BROKER         = "wss://x0fc990f.ala.asia-southeast1.emqxsl.com:8084/mqtt";
+const CMD_TOPIC      = "smartgrow/Tank_001/cmd";
+const STATUS_TOPIC   = "smartgrow/Tank_001/status";
+const SCHEDULE_TOPIC = "smartgrow/Tank_001/schedules";   // ← NEW
+let mqttReady = false;
+
+const client = mqtt.connect(BROKER, {
+  username:"Dosing_system",
+  password:"123456789",
+  clientId:"web_"+Math.random().toString(16).substr(2,8),
+  clean:true,
+  keepalive:60,
+  reconnectPeriod:3000
+});
+
+client.on("connect", () => {
+  mqttReady = true;
+  const badge = document.getElementById("status");
+  badge.querySelector('.status-text').innerText = "MQTT Connected";
+  badge.classList.remove("disconnected");
+  badge.classList.add("connected");
+  client.subscribe(STATUS_TOPIC);
+  client.subscribe(SCHEDULE_TOPIC);          // ← NEW subscription
+  logAction('sys', "Connected to MQTT Broker");
+  requestSchedules();                        // ← request schedules on connect
+});
+
+client.on("message", (topic, message) => {
+  /* ── STATUS ── */
+  if(topic === STATUS_TOPIC){
+    const data = JSON.parse(message.toString());
+
+    if(data.temp  !== undefined) document.getElementById("tempVal").innerText  = data.temp;
+    if(data.hum   !== undefined) document.getElementById("humVal").innerText   = data.hum;
+    if(data.water !== undefined) document.getElementById("waterVal").innerText = data.water;
+
+    // Plug 1
+    if(data.plug1 === 1){
+      document.getElementById("plug1_on").classList.add("btn-active");
+      document.getElementById("plug1_off").classList.remove("btn-active","btn-danger-active");
+    } else {
+      document.getElementById("plug1_on").classList.remove("btn-active","btn-danger-active");
+      document.getElementById("plug1_off").classList.add("btn-danger-active");
+    }
+    // Plug 2
+    if(data.plug2 === 1){
+      document.getElementById("plug2_on").classList.add("btn-active");
+      document.getElementById("plug2_off").classList.remove("btn-active","btn-danger-active");
+    } else {
+      document.getElementById("plug2_on").classList.remove("btn-active","btn-danger-active");
+      document.getElementById("plug2_off").classList.add("btn-danger-active");
+    }
+  }
+
+  /* ── SCHEDULES ── */
+  if(topic === SCHEDULE_TOPIC){
+    try {
+      const data = JSON.parse(message.toString());
+      renderSchedules(data);
+      logAction('sched', `Schedule list received — <strong>${(data.schedules||data).length}</strong> entries`);
+    } catch(e){
+      logAction('sys', 'Schedule parse error: ' + e.message);
+    }
+  }
+});
+
+function publish(obj){
+  if(!mqttReady){ alert("MQTT not ready"); return; }
+  client.publish(CMD_TOPIC, JSON.stringify(obj));
+}
+
+/* ─── PUMP / PLUG CONTROLS (unchanged) ─── */
+const PUMP_NAMES = {1:'Pump 1 (Nutrient A)', 2:'Pump 2 (Nutrient B)', 3:'Pump 3 (pH Adjust)'};
+const PLUG_NAMES = {1:'AC Plug 1', 2:'AC Plug 2'};
+
+function prime(p, s){
+  setGlow(`p${p}_on`, `p${p}_off`, s);
+  publish({cmd:"prime", pump:p, state:s});
+  const label = s==='on' ? '▶ Priming STARTED' : '■ Priming STOPPED';
+  logAction('pump', `${PUMP_NAMES[p]} — ${label}`);
+}
+
+function plug(p, s){
+  setGlow(`plug${p}_on`, `plug${p}_off`, s);
+  publish({cmd:"plug", plug:p, state:s});
+  const label = s==='on' ? '◉ Turned ON' : '○ Turned OFF';
+  logAction('plug', `${PLUG_NAMES[p]} — ${label}`);
+}
+
+function addNow(p){
+  const ml = Number(document.getElementById("ml"+p).value);
+  if(!ml) return alert("Enter ml");
+  publish({cmd:"add_now", pump:p, ml:ml});
+  logAction('ml', `${PUMP_NAMES[p]} — Dispensing <strong>${ml} ml</strong>`);
+}
+
+/* ═══════════════════════════════════════
+   SCHEDULER FUNCTIONS (FIXED FOR ESP32)
+═══════════════════════════════════════ */
+
+/* Relay number to label mapping */
+const RELAY_NAMES = {
+  1:'Pump 1 (Nutrient A)', 2:'Pump 2 (Nutrient B)', 3:'Pump 3 (pH Adjust)',
+  4:'AC Plug 1', 5:'AC Plug 2'
+};
+const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+/* Auto-increment ID tracker */
+let nextSchedId = 1;
+
+/* Toggle day button */
+function toggleDay(btn){
+  btn.classList.toggle('day-active');
+}
+
+/* Read day bitmask from picker */
+function getDaysMask(){
+  let mask = 0;
+  document.querySelectorAll('#dayPicker .day-btn').forEach(btn => {
+    if(btn.classList.contains('day-active')){
+      mask |= (1 << parseInt(btn.dataset.bit));
+    }
+  });
+  return mask;
+}
+
+/* Reset day picker to all active */
+function resetDayPicker(){
+  document.querySelectorAll('#dayPicker .day-btn').forEach(btn => {
+    btn.classList.add('day-active');
+  });
+}
+
+/* Populate action select based on device type */
+function onSchedDeviceChange(){
+  const dev    = parseInt(document.getElementById('schedDevice').value);
+  const action = document.getElementById('schedAction');
+  const amtWrap= document.getElementById('schedAmountWrap');
+
+  if(dev >= 1 && dev <= 3){
+    // pump
+    action.innerHTML = '<option value="dose">Dose</option>';
+    amtWrap.style.display = '';
+  } else {
+    // plug
+    action.innerHTML =
+      '<option value="on">Turn ON</option>' +
+      '<option value="off">Turn OFF</option>';
+    amtWrap.style.display = 'none';
+  }
+}
+
+function onSchedActionChange(){
+  const dev    = parseInt(document.getElementById('schedDevice').value);
+  const action = document.getElementById('schedAction').value;
+  const amtWrap= document.getElementById('schedAmountWrap');
+  amtWrap.style.display = (dev >= 1 && dev <= 3 && action === 'dose') ? '' : 'none';
+}
+
+/* Request schedule list from ESP */
+function requestSchedules(){
+  if(!mqttReady){ logAction('sys','MQTT not ready — cannot fetch schedules'); return; }
+  publish({cmd:"schedule_list"});
+  logAction('sched', 'Schedule list requested from ESP...');
+}
+
+/* Add a new schedule — sends ESP-compatible format */
+function addSchedule(){
+  const relay  = parseInt(document.getElementById('schedDevice').value);
+  const time   = document.getElementById('schedTime').value;
+  const action = document.getElementById('schedAction').value;
+  const amount = document.getElementById('schedAmount').value;
+  const days   = getDaysMask();
+
+  if(!time){ alert('Please set a time'); return; }
+  if(days === 0){ alert('Please select at least one day'); return; }
+
+  const isPump = (relay >= 1 && relay <= 3);
+  if(isPump && action === 'dose' && !amount){ alert('Please enter ml amount'); return; }
+
+  /* Parse time string "HH:MM" */
+  const parts = time.split(':');
+  const hour   = parseInt(parts[0]);
+  const minute = parseInt(parts[1]);
+
+  /* Build ESP-compatible payload */
+  const payload = {
+    cmd:    "schedule_add",
+    id:     nextSchedId++,
+    relay:  relay,
+    hour:   hour,
+    minute: minute,
+    days:   days
+  };
+
+  if(isPump){
+    payload.ml    = Number(amount);
+    payload.state = false;
+  } else {
+    payload.ml    = 0;
+    payload.state = (action === 'on');
+  }
+
+  publish(payload);
+
+  const devLabel  = RELAY_NAMES[relay] || ('Relay ' + relay);
+  const actLabel  = isPump ? `Dose ${amount}ml` : action.toUpperCase();
+  logAction('sched', `Schedule added — <strong>${devLabel}</strong> @ ${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')} → ${actLabel}`);
+
+  /* Clear form */
+  document.getElementById('schedTime').value   = '';
+  document.getElementById('schedAmount').value = '';
+  resetDayPicker();
+
+  /* Refresh list after short delay */
+  setTimeout(requestSchedules, 600);
+}
+
+/* Delete a schedule by ID */
+function deleteSchedule(id){
+  publish({cmd:"schedule_delete", id:id});
+  logAction('sched', `Schedule <strong>#${id}</strong> deleted`);
+  setTimeout(requestSchedules, 600);
+}
+
+/* Render the schedule table from ESP data */
+function renderSchedules(data){
+  /* Accept either {schedules:[...]} or [...] directly */
+  const list = Array.isArray(data) ? data : (data.schedules || []);
+
+  /* Track highest ID for auto-increment */
+  list.forEach(s => {
+    if(s.id && s.id >= nextSchedId) nextSchedId = s.id + 1;
+  });
+
+  /* Update count badge */
+  const countEl = document.getElementById('schedCount');
+  countEl.textContent = list.length + (list.length === 1 ? ' Schedule' : ' Schedules');
+
+  const tbody = document.getElementById('schedTableBody');
+
+  if(!list.length){
+    tbody.innerHTML = `
+      <tr><td colspan="6">
+        <div class="sched-empty">
+          <div class="sched-empty-icon">📋</div>
+          <div>No schedules configured — add one below</div>
+        </div>
+      </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(s => {
+    const relay    = s.relay || 0;
+    const isPump   = (relay >= 1 && relay <= 3);
+    const devClass = isPump ? 'pump' : 'plug';
+    const devLabel = RELAY_NAMES[relay] || ('Relay ' + relay);
+    const devIcon  = isPump ? '⟳' : '⚡';
+
+    /* Time display */
+    const timeStr = String(s.hour||0).padStart(2,'0') + ':' + String(s.minute||0).padStart(2,'0');
+
+    /* Days display */
+    const daysMask = s.days !== undefined ? s.days : 127;
+    let daysHtml = '';
+    for(let d = 0; d < 7; d++){
+      const active = (daysMask >> d) & 1;
+      daysHtml += `<span class="sched-day-chip ${active ? 'active' : 'inactive'}">${DAY_LABELS[d][0]}${DAY_LABELS[d][1]}</span>`;
+    }
+
+    /* Action display */
+    let actClass, actIcon, actLabel;
+    if(isPump){
+      actClass = 'dose'; actIcon = '💧'; actLabel = 'Dose';
+    } else if(s.state){
+      actClass = 'on';  actIcon = '◉';  actLabel = 'ON';
+    } else {
+      actClass = 'off'; actIcon = '○';  actLabel = 'OFF';
+    }
+
+    /* Amount cell */
+    const amountCell = (isPump && s.ml !== undefined)
+      ? `<span class="sched-amount">${s.ml} ml</span>`
+      : `<span style="color:var(--t4)">—</span>`;
+
+    return `
+      <tr>
+        <td><span class="sched-device ${devClass}">${devIcon} ${devLabel}</span></td>
+        <td><span class="sched-time">${timeStr}</span></td>
+        <td><div class="sched-days">${daysHtml}</div></td>
+        <td><span class="sched-action ${actClass}">${actIcon} ${actLabel}</span></td>
+        <td>${amountCell}</td>
+        <td><button class="btn-sched-del" onclick="deleteSchedule(${s.id})" title="Delete schedule">✕</button></td>
+      </tr>`;
+  }).join('');
+}
+
+/* ── Init form state on page load ── */
+onSchedDeviceChange();
+</script>
+
+</body>
+</html>
