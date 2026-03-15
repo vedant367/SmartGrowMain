@@ -207,6 +207,20 @@ body::after{
   50%    {box-shadow:0 0 14px var(--accent),0 0 22px var(--accent-glow);}
 }
 
+/* Device offline — red pulsing badge */
+.status-badge.device-offline{
+  border-color:rgba(255,68,102,.35);background:rgba(255,68,102,.08);
+  color:var(--danger);box-shadow:0 0 16px rgba(255,68,102,.12);
+}
+.status-badge.device-offline .status-dot{
+  background:var(--danger);box-shadow:0 0 8px var(--danger);
+  animation:dot-pulse-red 1.8s ease-in-out infinite;
+}
+@keyframes dot-pulse-red{
+  0%,100%{box-shadow:0 0 5px var(--danger);}
+  50%    {box-shadow:0 0 14px var(--danger),0 0 22px var(--danger-glow);}
+}
+
 /* theme toggle */
 .theme-toggle{
   width:54px;height:30px;border-radius:var(--rpill);flex-shrink:0;
@@ -1312,8 +1326,10 @@ function log(msg){ logAction('sys', msg); }
 const BROKER         = "wss://x0fc990f.ala.asia-southeast1.emqxsl.com:8084/mqtt";
 const CMD_TOPIC      = "smartgrow/Tank_001/cmd";
 const STATUS_TOPIC   = "smartgrow/Tank_001/status";
-const SCHEDULE_TOPIC = "smartgrow/Tank_001/schedules";   // ← NEW
+const SCHEDULE_TOPIC = "smartgrow/Tank_001/schedules";
+const AVAIL_TOPIC    = "smartgrow/Tank_001/availability";
 let mqttReady = false;
+let deviceOnline = false;
 
 const client = mqtt.connect(BROKER, {
   username:"Dosing_system",
@@ -1327,13 +1343,23 @@ const client = mqtt.connect(BROKER, {
 client.on("connect", () => {
   mqttReady = true;
   const badge = document.getElementById("status");
-  badge.querySelector('.status-text').innerText = "MQTT Connected";
-  badge.classList.remove("disconnected");
+  badge.querySelector('.status-text').innerText = "Broker Connected";
+  badge.classList.remove("disconnected","device-offline");
   badge.classList.add("connected");
   client.subscribe(STATUS_TOPIC);
-  client.subscribe(SCHEDULE_TOPIC);          // ← NEW subscription
+  client.subscribe(SCHEDULE_TOPIC);
+  client.subscribe(AVAIL_TOPIC);
   logAction('sys', "Connected to MQTT Broker");
-  requestSchedules();                        // ← request schedules on connect
+  requestSchedules();
+});
+
+/* ─── Handle broker disconnect from browser side ─── */
+client.on("offline", () => {
+  mqttReady = false;
+  const badge = document.getElementById("status");
+  badge.querySelector('.status-text').innerText = "Connecting...";
+  badge.classList.remove("connected","device-offline");
+  badge.classList.add("disconnected");
 });
 
 client.on("message", (topic, message) => {
@@ -1361,6 +1387,28 @@ client.on("message", (topic, message) => {
       document.getElementById("plug2_on").classList.remove("btn-active","btn-danger-active");
       document.getElementById("plug2_off").classList.add("btn-danger-active");
     }
+  }
+
+  /* ── DEVICE AVAILABILITY (LWT) ── */
+  if(topic === AVAIL_TOPIC){
+    try {
+      const data = JSON.parse(message.toString());
+      const badge = document.getElementById("status");
+
+      if(data.status === "online"){
+        deviceOnline = true;
+        badge.querySelector('.status-text').innerText = "Device Online";
+        badge.classList.remove("disconnected","device-offline");
+        badge.classList.add("connected");
+        logAction('sys', '🟢 Device is <strong>ONLINE</strong>');
+      } else {
+        deviceOnline = false;
+        badge.querySelector('.status-text').innerText = "Device Offline";
+        badge.classList.remove("connected","disconnected");
+        badge.classList.add("device-offline");
+        logAction('sys', '🔴 Device is <strong>OFFLINE</strong>');
+      }
+    } catch(e){}
   }
 
   /* ── SCHEDULES ── */
