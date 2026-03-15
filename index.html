@@ -965,6 +965,133 @@ input:focus{
 
 /* Input placeholders more visible */
 input::placeholder, .sched-input::placeholder { color:var(--t3); font-size:12.5px; }
+
+/* ═══════════════════════════════════════
+   LIGHT MODE — readable accent colours
+   Dark-mode neons are too washed-out on a light bg.
+   Override every accent colour to a darker, WCAG-friendly version.
+═══════════════════════════════════════ */
+[data-theme="light"] {
+  --accent:      #00875a;
+  --accent-glow: rgba(0,135,90,0.18);
+  --accent-soft: rgba(0,135,90,0.06);
+  --danger:      #d4264a;
+  --danger-glow: rgba(212,38,74,0.18);
+  --gold:        #b47a20;
+  --blue:        #2a7abf;
+  --blue-glow:   rgba(42,122,191,0.15);
+  --purple:      #7c3fc0;
+}
+
+/* Status badge — deeper green in light mode */
+[data-theme="light"] .status-badge.connected{
+  border-color:rgba(0,135,90,.35);background:rgba(0,135,90,.08);
+  color:var(--accent);box-shadow:0 0 12px rgba(0,135,90,.08);
+}
+[data-theme="light"] .status-badge.connected .status-dot{
+  background:var(--accent);box-shadow:0 0 6px var(--accent);
+}
+
+/* Device offline badge — deeper red in light mode */
+[data-theme="light"] .status-badge.device-offline{
+  border-color:rgba(212,38,74,.3);background:rgba(212,38,74,.07);
+  color:var(--danger);box-shadow:0 0 12px rgba(212,38,74,.08);
+}
+
+/* Schedule device chips */
+[data-theme="light"] .sched-device.pump{
+  background:rgba(0,135,90,.08);border-color:rgba(0,135,90,.25);color:var(--accent);
+}
+[data-theme="light"] .sched-device.plug{
+  background:rgba(180,122,32,.08);border-color:rgba(180,122,32,.25);color:var(--gold);
+}
+
+/* Schedule action chips */
+[data-theme="light"] .sched-action.dose{
+  background:rgba(42,122,191,.08);border-color:rgba(42,122,191,.22);color:var(--blue);
+}
+[data-theme="light"] .sched-action.on{
+  background:rgba(0,135,90,.07);border-color:rgba(0,135,90,.22);color:var(--accent);
+}
+[data-theme="light"] .sched-action.off{
+  background:rgba(212,38,74,.06);border-color:rgba(212,38,74,.18);color:var(--danger);
+}
+
+/* Schedule amount text */
+[data-theme="light"] .sched-amount{ color:var(--blue); }
+
+/* Active ON button — deeper green glow */
+[data-theme="light"] .btn-active{
+  background:linear-gradient(135deg,rgba(0,135,90,.16),rgba(0,135,90,.06)) !important;
+  border-color:rgba(0,135,90,.5) !important;
+  color:var(--accent) !important;
+  box-shadow:
+    0 0 0 2px rgba(0,135,90,.12),
+    0 0 16px rgba(0,135,90,.15),
+    inset 0 1px 0 rgba(0,135,90,.2) !important;
+  text-shadow:none;
+}
+
+/* Active OFF button — deeper red glow */
+[data-theme="light"] .btn-danger-active{
+  background:linear-gradient(135deg,rgba(212,38,74,.14),rgba(212,38,74,.05)) !important;
+  border-color:rgba(212,38,74,.45) !important;
+  color:var(--danger) !important;
+  box-shadow:
+    0 0 0 2px rgba(212,38,74,.1),
+    0 0 16px rgba(212,38,74,.12),
+    inset 0 1px 0 rgba(212,38,74,.15) !important;
+  text-shadow:none;
+}
+
+/* Dispense button */
+[data-theme="light"] .btn-dispense{
+  background:linear-gradient(135deg,rgba(0,135,90,.08),rgba(42,122,191,.05));
+  border-color:rgba(0,135,90,.22);color:var(--accent);
+}
+
+/* Day picker active */
+[data-theme="light"] .day-btn.day-active{
+  background:linear-gradient(135deg,rgba(124,63,192,.15),rgba(124,63,192,.06));
+  border-color:rgba(124,63,192,.4);color:var(--purple);
+}
+[data-theme="light"] .sched-day-chip.active{
+  background:rgba(124,63,192,.12);border-color:rgba(124,63,192,.25);color:var(--purple);
+}
+
+/* Schedule card icon & form accents */
+[data-theme="light"] .sched-card-icon{
+  background:linear-gradient(135deg,rgba(124,63,192,.12),rgba(124,63,192,.03));
+  border-color:rgba(124,63,192,.22);
+}
+[data-theme="light"] .sched-form{
+  background:rgba(124,63,192,.03);border-color:rgba(124,63,192,.12);
+}
+[data-theme="light"] .btn-sched-add{
+  border-color:rgba(124,63,192,.3);
+  background:linear-gradient(135deg,rgba(124,63,192,.12),rgba(124,63,192,.04));
+  color:var(--purple);
+}
+[data-theme="light"] .btn-sched-refresh{
+  border-color:rgba(124,63,192,.22);background:rgba(124,63,192,.06);color:var(--purple);
+}
+[data-theme="light"] .sched-count{
+  border-color:rgba(124,63,192,.22);background:rgba(124,63,192,.06);color:var(--purple);
+}
+
+/* Env card value gradient */
+[data-theme="light"] .env-value{
+  background:linear-gradient(135deg,var(--blue) 0%,var(--accent) 100%);
+  -webkit-background-clip:text;background-clip:text;
+}
+
+/* Delete button */
+[data-theme="light"] .btn-sched-del{
+  border-color:rgba(212,38,74,.22);background:rgba(212,38,74,.05);color:var(--danger);
+}
+
+/* Log strong text */
+[data-theme="light"] .log-m strong{ color:var(--accent); }
 </style>
 </head>
 <body>
