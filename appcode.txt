@@ -1823,13 +1823,28 @@ function connectMQTTForDevice(deviceId){
   mqttClient.on("connect", () => {
     mqttReady = true;
     const badge = document.getElementById("status");
-    badge.querySelector('.status-text').innerText = "Broker Connected";
-    badge.classList.remove("disconnected","device-offline");
-    badge.classList.add("connected");
+    badge.querySelector('.status-text').innerText = "Checking Device...";
+    badge.classList.remove("disconnected","device-offline","connected");
+    badge.classList.add("disconnected");
     mqttClient.subscribe(STATUS_TOPIC);
     mqttClient.subscribe(SCHEDULE_TOPIC);
     mqttClient.subscribe(AVAIL_TOPIC);
-    logAction('sys', "Connected to MQTT Broker");
+    logAction('sys', "Connected to MQTT Broker — checking device status...");
+
+    /* If no availability message arrives within 5 seconds,
+       assume device is offline (no retained LWT exists yet
+       or device has never connected with V1.5 firmware) */
+    deviceOnline = false;
+    if(window._deviceCheckTimer) clearTimeout(window._deviceCheckTimer);
+    window._deviceCheckTimer = setTimeout(() => {
+      if(!deviceOnline){
+        badge.querySelector('.status-text').innerText = "Device Offline";
+        badge.classList.remove("connected","disconnected");
+        badge.classList.add("device-offline");
+        logAction('sys', '🔴 Device is <strong>OFFLINE</strong>');
+      }
+    }, 5000);
+
     requestSchedules();
   });
 
@@ -1871,6 +1886,9 @@ function connectMQTTForDevice(deviceId){
     /* ── DEVICE AVAILABILITY (LWT) ── */
     if(topic === AVAIL_TOPIC){
       try {
+        /* Cancel the fallback timer — we got a real answer */
+        if(window._deviceCheckTimer) clearTimeout(window._deviceCheckTimer);
+
         const data = JSON.parse(message.toString());
         const badge = document.getElementById("status");
 
