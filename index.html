@@ -1816,7 +1816,10 @@ input::placeholder, .sched-input::placeholder { color:var(--t3); font-size:12.5p
 
     <div class="history-foot">
       <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--t4);">Showing last 50 events</span>
-      <button class="btn-hist-more" onclick="loadMoreHistory()">Load More</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn-clear admin-only" onclick="confirmClearHistory()" style="display:none;">✕ Clear History</button>
+        <button class="btn-hist-more" onclick="loadMoreHistory()">Load More</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2036,6 +2039,11 @@ function showApp(){
 
   /* Load dosing history */
   loadHistory();
+
+  /* Show admin-only elements */
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = (currentRole === 'admin') ? '' : 'none';
+  });
 
   /* Connect MQTT for this user's device */
   connectMQTTForDevice(activeDevice);
@@ -2790,6 +2798,44 @@ function buildHistoryRow(h){
       <td>${amtStr}</td>
       <td><span class="hist-user">${userStr}</span></td>
     </tr>`;
+}
+
+/* ─── Clear History (admin only) ─── */
+function confirmClearHistory(){
+  if(currentRole !== 'admin') return;
+  if(!confirm('Are you sure you want to clear ALL history for this device? This cannot be undone.')) return;
+  clearHistory();
+}
+
+async function clearHistory(){
+  if(!activeDevice) return;
+  try {
+    const colRef = db.collection('devices').doc(activeDevice).collection('history');
+    const snap = await colRef.limit(500).get();
+
+    if(snap.empty){
+      logAction('sys', 'History is already empty');
+      return;
+    }
+
+    /* Delete in batches */
+    const batch = db.batch();
+    snap.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+
+    logAction('sys', `Cleared <strong>${snap.size}</strong> history entries`);
+
+    /* If there were more than 500, keep deleting */
+    if(snap.size === 500){
+      await clearHistory();
+    } else {
+      lastHistoryDoc = null;
+      renderHistory([]);
+    }
+  } catch(e){
+    console.error('[HIST] Clear error:', e);
+    logAction('sys', 'Failed to clear history');
+  }
 }
 
 /* ── Init form state on page load ── */
