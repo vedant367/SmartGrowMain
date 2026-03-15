@@ -1730,6 +1730,9 @@ function showApp(){
   document.getElementById('brandSub').textContent =
     'Nutrient Dosing System · ' + activeDevice.replace('_', ' ');
 
+  /* Load schedules from Firestore immediately (don't wait for ESP) */
+  loadSchedulesFromFirestore();
+
   /* Connect MQTT for this user's device */
   connectMQTTForDevice(activeDevice);
 }
@@ -1912,8 +1915,12 @@ function connectMQTTForDevice(deviceId){
     if(topic === SCHEDULE_TOPIC){
       try {
         const data = JSON.parse(message.toString());
+        const list = Array.isArray(data) ? data : (data.schedules || []);
         renderSchedules(data);
-        logAction('sched', `Schedule list received — <strong>${(data.schedules||data).length}</strong> entries`);
+        logAction('sched', `Schedule list received — <strong>${list.length}</strong> entries`);
+
+        /* Sync ESP32 schedule data back to Firestore */
+        syncSchedulesToFirestore(list);
       } catch(e){
         logAction('sys', 'Schedule parse error: ' + e.message);
       }
@@ -2009,9 +2016,92 @@ function onSchedActionChange(){
 }
 
 function requestSchedules(){
-  if(!mqttReady){ logAction('sys','MQTT not ready — cannot fetch schedules'); return; }
-  publish({cmd:"schedule_list"});
-  logAction('sched', 'Schedule list requested from ESP...');
+  /* Always load from Firestore first (works even if device is offline) */
+  loadSchedulesFromFirestore();
+
+  /* Also request from ESP32 if MQTT is ready */
+  if(mqttReady){
+    publish({cmd:"schedule_list"});
+    logAction('sched', 'Schedule list requested from ESP...');
+  }
+}
+
+/* ─── FIRESTORE SCHEDULE FUNCTIONS ─── */
+
+/* Load schedules from Firestore → render immediately */
+async function loadSchedulesFromFirestore(){
+  if(!activeDevice) return;
+  try {
+    const snap = await db.collection('devices').doc(activeDevice)
+                         .collection('schedules').orderBy('hour').orderBy('minute').get();
+    if(snap.empty) return;
+
+    const list = [];
+    snap.forEach(doc => {
+      list.push(doc.data());
+    });
+
+    /* Only render if we haven't already gotten fresh data from ESP */
+    if(!deviceOnline){
+      renderSchedules(list);
+      logAction('sched', `Loaded <strong>${list.length}</strong> schedules from cloud`);
+    }
+  } catch(e){
+    console.error('[SCHED] Firestore load error:', e);
+  }
+}
+
+/* Save a single schedule to Firestore */
+async function saveScheduleToFirestore(schedData){
+  if(!activeDevice) return;
+  try {
+    await db.collection('devices').doc(activeDevice)
+            .collection('schedules').doc(String(schedData.id))
+            .set(schedData, {merge: true});
+  } catch(e){
+    console.error('[SCHED] Firestore save error:', e);
+  }
+}
+
+/* Delete a schedule from Firestore */
+async function deleteScheduleFromFirestore(id){
+  if(!activeDevice) return;
+  try {
+    await db.collection('devices').doc(activeDevice)
+            .collection('schedules').doc(String(id)).delete();
+  } catch(e){
+    console.error('[SCHED] Firestore delete error:', e);
+  }
+}
+
+/* Sync full schedule list from ESP32 to Firestore (when ESP responds) */
+async function syncSchedulesToFirestore(list){
+  if(!activeDevice) return;
+  try {
+    const colRef = db.collection('devices').doc(activeDevice).collection('schedules');
+
+    /* Get existing Firestore schedule IDs */
+    const snap = await colRef.get();
+    const existingIds = new Set();
+    snap.forEach(doc => existingIds.add(doc.id));
+
+    /* Add/update all schedules from ESP */
+    const espIds = new Set();
+    for(const s of list){
+      if(!s.id) continue;
+      espIds.add(String(s.id));
+      await colRef.doc(String(s.id)).set(s, {merge: true});
+    }
+
+    /* Delete any Firestore schedules that ESP no longer has */
+    for(const id of existingIds){
+      if(!espIds.has(id)){
+        await colRef.doc(id).delete();
+      }
+    }
+  } catch(e){
+    console.error('[SCHED] Firestore sync error:', e);
+  }
 }
 
 function addSchedule(){
@@ -2050,6 +2140,17 @@ function addSchedule(){
 
   publish(payload);
 
+  /* Save to Firestore (cloud backup) */
+  const schedRecord = {
+    id: payload.id, relay: payload.relay,
+    hour: payload.hour, minute: payload.minute,
+    days: payload.days, ml: payload.ml,
+    state: payload.state, enabled: true,
+    createdBy: currentUser ? currentUser.email : 'unknown',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  saveScheduleToFirestore(schedRecord);
+
   const devLabel  = RELAY_NAMES[relay] || ('Relay ' + relay);
   const actLabel  = isPump ? `Dose ${amount}ml` : action.toUpperCase();
   logAction('sched', `Schedule added — <strong>${devLabel}</strong> @ ${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')} → ${actLabel}`);
@@ -2063,6 +2164,7 @@ function addSchedule(){
 
 function deleteSchedule(id){
   publish({cmd:"schedule_delete", id:id});
+  deleteScheduleFromFirestore(id);
   logAction('sched', `Schedule <strong>#${id}</strong> deleted`);
   setTimeout(requestSchedules, 600);
 }
