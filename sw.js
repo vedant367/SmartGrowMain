@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smartgrow-v1.4';
+const CACHE_NAME = 'smartgrow-v1.5';
 const ASSETS = [
   './',
   './index.html',
@@ -33,8 +33,14 @@ self.addEventListener('fetch', event => {
   // Skip non-GET and MQTT websocket requests
   if(event.request.method !== 'GET') return;
   if(event.request.url.includes('emqxsl.com')) return;
-  if(event.request.url.includes('unpkg.com/mqtt')) {
-    // Always try network for MQTT library
+
+  // Skip Firebase auth/firestore API calls (must always go to network)
+  if(event.request.url.includes('googleapis.com/identitytoolkit')) return;
+  if(event.request.url.includes('firestore.googleapis.com')) return;
+  if(event.request.url.includes('securetoken.googleapis.com')) return;
+
+  if(event.request.url.includes('unpkg.com/mqtt') || event.request.url.includes('gstatic.com/firebasejs')) {
+    // Always try network for external libraries, cache as fallback
     event.respondWith(
       fetch(event.request)
         .then(resp => {

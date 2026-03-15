@@ -12,6 +12,10 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<!-- Firebase SDKs (compat mode — works without bundler) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 
 <style>
@@ -936,6 +940,149 @@ input:focus{
   .sched-form-grid{grid-template-columns:1fr;gap:8px;}
   .sched-form-grid .btn-sched-add{grid-column:span 1;}
 }
+/* ═══════════════════════════════════════
+   LOGIN SCREEN
+═══════════════════════════════════════ */
+.login-screen{
+  position:fixed;inset:0;z-index:9999;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--bg);
+  transition:opacity .4s ease,visibility .4s ease;
+}
+.login-screen.hidden{opacity:0;visibility:hidden;pointer-events:none;}
+
+.login-card{
+  width:100%;max-width:400px;margin:20px;
+  background:var(--card);border:1px solid var(--card-bd);
+  border-radius:var(--r);padding:40px 36px;
+  backdrop-filter:blur(28px) saturate(1.3);
+  -webkit-backdrop-filter:blur(28px) saturate(1.3);
+  position:relative;overflow:hidden;
+  animation:rise .6s ease both;
+}
+.login-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 5%,var(--shim) 35%,var(--shim2) 65%,transparent 95%);
+}
+.login-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:50%;
+  background:linear-gradient(180deg,var(--shim2) 0%,transparent 100%);
+  opacity:.28;pointer-events:none;border-radius:var(--r) var(--r) 0 0;
+}
+
+.login-logo{
+  display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px;
+}
+.login-logo .logo-bg{width:52px;height:52px;border-radius:16px;font-size:24px;}
+.login-brand{font-size:24px;font-weight:800;letter-spacing:-0.01em;
+  background:linear-gradient(90deg,var(--text) 0%,var(--t2) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.login-sub{
+  text-align:center;font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--t3);
+  margin-bottom:32px;
+}
+
+.login-field{margin-bottom:16px;}
+.login-field label{
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--t3);margin-bottom:6px;display:block;
+}
+.login-field input{
+  width:100%;padding:13px 16px;border-radius:var(--rsm);
+  border:1px solid var(--card-bd);background:var(--inset);
+  color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;
+  outline:none;transition:all .25s ease;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.15);
+}
+.login-field input:focus{
+  border-color:rgba(0,255,179,.4);
+  box-shadow:0 0 0 3px rgba(0,255,179,.1),inset 0 2px 6px rgba(0,0,0,.1);
+}
+[data-theme="light"] .login-field input:focus{
+  border-color:rgba(0,135,90,.4);
+  box-shadow:0 0 0 3px rgba(0,135,90,.1),inset 0 2px 6px rgba(0,0,0,.05);
+}
+
+.btn-login{
+  width:100%;padding:14px;margin-top:8px;border-radius:var(--rsm);
+  border:1px solid rgba(0,255,179,.35);
+  background:linear-gradient(135deg,rgba(0,255,179,.18),rgba(0,255,179,.06));
+  color:var(--accent);font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;
+  letter-spacing:.06em;cursor:pointer;text-transform:uppercase;
+  transition:all .22s ease;position:relative;overflow:hidden;
+}
+.btn-login::before{
+  content:'';position:absolute;
+  top:-50%;left:-60%;width:40%;height:200%;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.08),transparent);
+  transform:skewX(-15deg);transition:left .55s ease;pointer-events:none;
+}
+.btn-login:hover::before{left:130%;}
+.btn-login:hover{
+  border-color:rgba(0,255,179,.55);
+  background:linear-gradient(135deg,rgba(0,255,179,.28),rgba(0,255,179,.1));
+  box-shadow:0 8px 28px rgba(0,255,179,.15);transform:translateY(-1px);
+}
+.btn-login:active{transform:translateY(0) scale(.97);}
+.btn-login:disabled{opacity:.5;cursor:not-allowed;transform:none !important;}
+
+.login-error{
+  margin-top:14px;padding:10px 14px;border-radius:var(--rsm);
+  background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.2);
+  color:var(--danger);font-size:12px;text-align:center;
+  display:none;animation:rise .3s ease;
+}
+.login-error.show{display:block;}
+
+.login-footer{
+  margin-top:28px;text-align:center;
+  font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;
+  color:var(--t4);text-transform:uppercase;
+}
+
+/* Logout button */
+.btn-logout{
+  padding:7px 14px;border-radius:var(--rpill);
+  border:1px solid var(--card-bd);background:var(--glass);
+  font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--t3);cursor:pointer;
+  transition:all .22s ease;white-space:nowrap;flex-shrink:0;
+}
+.btn-logout:hover{
+  border-color:rgba(255,68,102,.3);color:var(--danger);background:rgba(255,68,102,.06);
+}
+
+/* User info in header */
+.user-info{
+  display:flex;align-items:center;gap:8px;
+  font-family:'JetBrains Mono',monospace;font-size:9.5px;
+  letter-spacing:.06em;color:var(--t3);white-space:nowrap;
+}
+.user-role{
+  padding:2px 8px;border-radius:var(--rpill);font-size:8px;
+  letter-spacing:.14em;text-transform:uppercase;font-weight:600;
+}
+.user-role.admin{
+  background:rgba(255,200,122,.1);border:1px solid rgba(255,200,122,.25);color:var(--gold);
+}
+.user-role.user{
+  background:rgba(96,184,255,.08);border:1px solid rgba(96,184,255,.2);color:var(--blue);
+}
+
+/* App wrapper — hidden until logged in */
+#appMain{display:none;}
+#appMain.visible{display:block;}
+
+/* Powered by footer */
+.powered-footer{
+  position:relative;z-index:10;
+  text-align:center;padding:20px 0 30px;
+  font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--t4);
+}
+
 </style>
 
 <!-- ── TEXT VISIBILITY OVERRIDES (size + contrast only, no layout change) ── -->
@@ -1098,16 +1245,52 @@ input::placeholder, .sched-input::placeholder { color:var(--t3); font-size:12.5p
 
 <div class="grid-tex"></div>
 
+<!-- ══════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════ -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-bg">🌱</div>
+      <span class="login-brand">SmartGrow</span>
+    </div>
+    <div class="login-sub">Nutrient Dosing System</div>
+
+    <div class="login-field">
+      <label>Email</label>
+      <input id="loginEmail" type="email" placeholder="you@company.com" autocomplete="email">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+
+    <button class="btn-login" id="btnLogin" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+
+    <div class="login-footer">Powered by SmartGrow</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     APP (hidden until authenticated)
+══════════════════════════════════════ -->
+<div id="appMain">
+
 <!-- ══ HEADER ══ -->
 <div class="header">
   <div class="header-left">
     <div class="logo-bg">🌱</div>
     <div>
       <div class="brand-name">SmartGrow</div>
-      <div class="brand-sub">Nutrient Dosing System · Tank 001</div>
+      <div class="brand-sub" id="brandSub">Nutrient Dosing System · Tank 001</div>
     </div>
   </div>
   <div class="header-right">
+    <div class="user-info">
+      <span id="userName"></span>
+      <span id="userRole" class="user-role"></span>
+    </div>
     <div id="status" class="status-badge disconnected">
       <span class="status-dot"></span>
       <span class="status-text">Connecting...</span>
@@ -1115,6 +1298,7 @@ input::placeholder, .sched-input::placeholder { color:var(--t3); font-size:12.5p
     <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark">
       <div class="toggle-knob" id="toggleKnob">🌙</div>
     </button>
+    <button class="btn-logout" onclick="doLogout()">Logout</button>
   </div>
 </div>
 
@@ -1396,9 +1580,163 @@ input::placeholder, .sched-input::placeholder { color:var(--t3); font-size:12.5p
   </div>
 </div>
 
+<div class="powered-footer">Powered by SmartGrow</div>
+
+</div><!-- /appMain -->
+
 
 <script>
-/* ─── THEME ─── */
+/* ═══════════════════════════════════════
+   FIREBASE INIT
+═══════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyCEgUJ674JVHl-P59PGM6lR_yOEWz8S-ac",
+  authDomain: "smartgrow-111.firebaseapp.com",
+  projectId: "smartgrow-111",
+  storageBucket: "smartgrow-111.firebasestorage.app",
+  messagingSenderId: "218356431736",
+  appId: "1:218356431736:web:e260dad18f37c1239c668d"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+/* ═══════════════════════════════════════
+   AUTH STATE
+═══════════════════════════════════════ */
+let currentUser  = null;
+let currentRole  = 'user';
+let userDevices  = [];
+let activeDevice = null;
+
+/* ─── Login ─── */
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  const btn   = document.getElementById('btnLogin');
+
+  errEl.classList.remove('show');
+  if(!email || !pass){ showLoginError('Please enter email and password'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+    /* onAuthStateChanged will handle the rest */
+  } catch(e){
+    let msg = 'Login failed';
+    if(e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential')
+      msg = 'Invalid email or password';
+    else if(e.code === 'auth/too-many-requests')
+      msg = 'Too many attempts — try again later';
+    else if(e.code === 'auth/invalid-email')
+      msg = 'Invalid email address';
+    showLoginError(msg);
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+}
+
+function showLoginError(msg){
+  const el = document.getElementById('loginError');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+async function doLogout(){
+  if(mqttClient && mqttClient.connected){
+    mqttClient.end();
+  }
+  mqttClient = null;
+  mqttReady = false;
+  await auth.signOut();
+}
+
+/* ─── Enter key to login ─── */
+document.getElementById('loginPass').addEventListener('keydown', e => {
+  if(e.key === 'Enter') doLogin();
+});
+document.getElementById('loginEmail').addEventListener('keydown', e => {
+  if(e.key === 'Enter') document.getElementById('loginPass').focus();
+});
+
+/* ─── Auth state listener ─── */
+auth.onAuthStateChanged(async (user) => {
+  if(user){
+    currentUser = user;
+    await loadUserProfile(user.uid);
+    showApp();
+  } else {
+    currentUser = null;
+    showLogin();
+  }
+});
+
+/* ─── Load user profile from Firestore ─── */
+async function loadUserProfile(uid){
+  try {
+    const doc = await db.collection('users').doc(uid).get();
+    if(doc.exists){
+      const data = doc.data();
+      currentRole = data.role || 'user';
+      userDevices = data.devices || ['Tank_001'];
+    } else {
+      /* First-time user — create a default profile */
+      currentRole = 'user';
+      userDevices = ['Tank_001'];
+      await db.collection('users').doc(uid).set({
+        email: currentUser.email,
+        name: currentUser.email.split('@')[0],
+        role: 'user',
+        devices: ['Tank_001'],
+        created: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  } catch(e){
+    console.error('[AUTH] Firestore error:', e);
+    /* Fallback — use defaults so app still works */
+    currentRole = 'user';
+    userDevices = ['Tank_001'];
+  }
+
+  activeDevice = userDevices[0];
+}
+
+/* ─── Show/Hide login vs app ─── */
+function showLogin(){
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('appMain').classList.remove('visible');
+  document.getElementById('appMain').style.display = 'none';
+  document.getElementById('btnLogin').disabled = false;
+  document.getElementById('btnLogin').textContent = 'Sign In';
+  document.getElementById('loginPass').value = '';
+}
+
+function showApp(){
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('appMain').style.display = 'block';
+  document.getElementById('appMain').classList.add('visible');
+
+  /* Update header with user info */
+  const nameEl = document.getElementById('userName');
+  const roleEl = document.getElementById('userRole');
+  nameEl.textContent = currentUser.email.split('@')[0];
+  roleEl.textContent = currentRole;
+  roleEl.className   = 'user-role ' + currentRole;
+
+  /* Update brand subtitle with device name */
+  document.getElementById('brandSub').textContent =
+    'Nutrient Dosing System · ' + activeDevice.replace('_', ' ');
+
+  /* Connect MQTT for this user's device */
+  connectMQTTForDevice(activeDevice);
+}
+
+/* ═══════════════════════════════════════
+   THEME
+═══════════════════════════════════════ */
 const htmlEl = document.documentElement;
 const knob   = document.getElementById('toggleKnob');
 
@@ -1416,7 +1754,9 @@ function toggleTheme(){
   if(window.matchMedia('(prefers-color-scheme:light)').matches) setTheme('light');
 })();
 
-/* ─── HELPER: only glow the pressed button, other stays plain ─── */
+/* ═══════════════════════════════════════
+   HELPER: button glow
+═══════════════════════════════════════ */
 function setGlow(onId, offId, state){
   const onBtn  = document.getElementById(onId);
   const offBtn = document.getElementById(offId);
@@ -1430,11 +1770,14 @@ function setGlow(onId, offId, state){
   }
 }
 
-/* ─── LOG TYPES ─── */
+/* ═══════════════════════════════════════
+   LOG
+═══════════════════════════════════════ */
 const LOG_ICONS = { pump:'🔵', plug:'⚡', ml:'💧', sys:'✅', env:'🌡', sched:'⏱' };
 
 function logAction(type, msg){
   const el = document.getElementById('log');
+  if(!el) return;
   const e  = document.createElement('div');
   e.className = 'log-entry';
   e.innerHTML = `
@@ -1445,117 +1788,129 @@ function logAction(type, msg){
   el.scrollTop = el.scrollHeight;
 }
 function clearLog(){document.getElementById('log').innerHTML='';}
-
-/* legacy alias used by connect handler */
 function log(msg){ logAction('sys', msg); }
 
-/* ─── MQTT ─── */
-const BROKER         = "wss://x0fc990f.ala.asia-southeast1.emqxsl.com:8084/mqtt";
-const CMD_TOPIC      = "smartgrow/Tank_001/cmd";
-const STATUS_TOPIC   = "smartgrow/Tank_001/status";
-const SCHEDULE_TOPIC = "smartgrow/Tank_001/schedules";
-const AVAIL_TOPIC    = "smartgrow/Tank_001/availability";
-let mqttReady = false;
+/* ═══════════════════════════════════════
+   MQTT — Dynamic per device
+═══════════════════════════════════════ */
+const BROKER = "wss://x0fc990f.ala.asia-southeast1.emqxsl.com:8084/mqtt";
+let CMD_TOPIC, STATUS_TOPIC, SCHEDULE_TOPIC, AVAIL_TOPIC;
+let mqttReady  = false;
 let deviceOnline = false;
+let mqttClient = null;
 
-const client = mqtt.connect(BROKER, {
-  username:"Dosing_system",
-  password:"123456789",
-  clientId:"web_"+Math.random().toString(16).substr(2,8),
-  clean:true,
-  keepalive:60,
-  reconnectPeriod:3000
-});
+function connectMQTTForDevice(deviceId){
+  /* Set topics for this device */
+  CMD_TOPIC      = "smartgrow/" + deviceId + "/cmd";
+  STATUS_TOPIC   = "smartgrow/" + deviceId + "/status";
+  SCHEDULE_TOPIC = "smartgrow/" + deviceId + "/schedules";
+  AVAIL_TOPIC    = "smartgrow/" + deviceId + "/availability";
 
-client.on("connect", () => {
-  mqttReady = true;
-  const badge = document.getElementById("status");
-  badge.querySelector('.status-text').innerText = "Broker Connected";
-  badge.classList.remove("disconnected","device-offline");
-  badge.classList.add("connected");
-  client.subscribe(STATUS_TOPIC);
-  client.subscribe(SCHEDULE_TOPIC);
-  client.subscribe(AVAIL_TOPIC);
-  logAction('sys', "Connected to MQTT Broker");
-  requestSchedules();
-});
-
-/* ─── Handle broker disconnect from browser side ─── */
-client.on("offline", () => {
-  mqttReady = false;
-  const badge = document.getElementById("status");
-  badge.querySelector('.status-text').innerText = "Connecting...";
-  badge.classList.remove("connected","device-offline");
-  badge.classList.add("disconnected");
-});
-
-client.on("message", (topic, message) => {
-  /* ── STATUS ── */
-  if(topic === STATUS_TOPIC){
-    const data = JSON.parse(message.toString());
-
-    if(data.temp  !== undefined) document.getElementById("tempVal").innerText  = data.temp;
-    if(data.hum   !== undefined) document.getElementById("humVal").innerText   = data.hum;
-    if(data.water !== undefined) document.getElementById("waterVal").innerText = data.water;
-
-    // Plug 1
-    if(data.plug1 === 1){
-      document.getElementById("plug1_on").classList.add("btn-active");
-      document.getElementById("plug1_off").classList.remove("btn-active","btn-danger-active");
-    } else {
-      document.getElementById("plug1_on").classList.remove("btn-active","btn-danger-active");
-      document.getElementById("plug1_off").classList.add("btn-danger-active");
-    }
-    // Plug 2
-    if(data.plug2 === 1){
-      document.getElementById("plug2_on").classList.add("btn-active");
-      document.getElementById("plug2_off").classList.remove("btn-active","btn-danger-active");
-    } else {
-      document.getElementById("plug2_on").classList.remove("btn-active","btn-danger-active");
-      document.getElementById("plug2_off").classList.add("btn-danger-active");
-    }
+  /* Disconnect existing client if any */
+  if(mqttClient){
+    try { mqttClient.end(true); } catch(e){}
   }
 
-  /* ── DEVICE AVAILABILITY (LWT) ── */
-  if(topic === AVAIL_TOPIC){
-    try {
-      const data = JSON.parse(message.toString());
-      const badge = document.getElementById("status");
+  mqttClient = mqtt.connect(BROKER, {
+    username:"Dosing_system",
+    password:"123456789",
+    clientId:"web_"+Math.random().toString(16).substr(2,8),
+    clean:true,
+    keepalive:60,
+    reconnectPeriod:3000
+  });
 
-      if(data.status === "online"){
-        deviceOnline = true;
-        badge.querySelector('.status-text').innerText = "Device Online";
-        badge.classList.remove("disconnected","device-offline");
-        badge.classList.add("connected");
-        logAction('sys', '🟢 Device is <strong>ONLINE</strong>');
+  mqttClient.on("connect", () => {
+    mqttReady = true;
+    const badge = document.getElementById("status");
+    badge.querySelector('.status-text').innerText = "Broker Connected";
+    badge.classList.remove("disconnected","device-offline");
+    badge.classList.add("connected");
+    mqttClient.subscribe(STATUS_TOPIC);
+    mqttClient.subscribe(SCHEDULE_TOPIC);
+    mqttClient.subscribe(AVAIL_TOPIC);
+    logAction('sys', "Connected to MQTT Broker");
+    requestSchedules();
+  });
+
+  mqttClient.on("offline", () => {
+    mqttReady = false;
+    const badge = document.getElementById("status");
+    badge.querySelector('.status-text').innerText = "Connecting...";
+    badge.classList.remove("connected","device-offline");
+    badge.classList.add("disconnected");
+  });
+
+  mqttClient.on("message", (topic, message) => {
+    /* ── STATUS ── */
+    if(topic === STATUS_TOPIC){
+      const data = JSON.parse(message.toString());
+
+      if(data.temp  !== undefined) document.getElementById("tempVal").innerText  = data.temp;
+      if(data.hum   !== undefined) document.getElementById("humVal").innerText   = data.hum;
+      if(data.water !== undefined) document.getElementById("waterVal").innerText = data.water;
+
+      // Plug 1
+      if(data.plug1 === 1){
+        document.getElementById("plug1_on").classList.add("btn-active");
+        document.getElementById("plug1_off").classList.remove("btn-active","btn-danger-active");
       } else {
-        deviceOnline = false;
-        badge.querySelector('.status-text').innerText = "Device Offline";
-        badge.classList.remove("connected","disconnected");
-        badge.classList.add("device-offline");
-        logAction('sys', '🔴 Device is <strong>OFFLINE</strong>');
+        document.getElementById("plug1_on").classList.remove("btn-active","btn-danger-active");
+        document.getElementById("plug1_off").classList.add("btn-danger-active");
       }
-    } catch(e){}
-  }
-
-  /* ── SCHEDULES ── */
-  if(topic === SCHEDULE_TOPIC){
-    try {
-      const data = JSON.parse(message.toString());
-      renderSchedules(data);
-      logAction('sched', `Schedule list received — <strong>${(data.schedules||data).length}</strong> entries`);
-    } catch(e){
-      logAction('sys', 'Schedule parse error: ' + e.message);
+      // Plug 2
+      if(data.plug2 === 1){
+        document.getElementById("plug2_on").classList.add("btn-active");
+        document.getElementById("plug2_off").classList.remove("btn-active","btn-danger-active");
+      } else {
+        document.getElementById("plug2_on").classList.remove("btn-active","btn-danger-active");
+        document.getElementById("plug2_off").classList.add("btn-danger-active");
+      }
     }
-  }
-});
 
-function publish(obj){
-  if(!mqttReady){ alert("MQTT not ready"); return; }
-  client.publish(CMD_TOPIC, JSON.stringify(obj));
+    /* ── DEVICE AVAILABILITY (LWT) ── */
+    if(topic === AVAIL_TOPIC){
+      try {
+        const data = JSON.parse(message.toString());
+        const badge = document.getElementById("status");
+
+        if(data.status === "online"){
+          deviceOnline = true;
+          badge.querySelector('.status-text').innerText = "Device Online";
+          badge.classList.remove("disconnected","device-offline");
+          badge.classList.add("connected");
+          logAction('sys', '🟢 Device is <strong>ONLINE</strong>');
+        } else {
+          deviceOnline = false;
+          badge.querySelector('.status-text').innerText = "Device Offline";
+          badge.classList.remove("connected","disconnected");
+          badge.classList.add("device-offline");
+          logAction('sys', '🔴 Device is <strong>OFFLINE</strong>');
+        }
+      } catch(e){}
+    }
+
+    /* ── SCHEDULES ── */
+    if(topic === SCHEDULE_TOPIC){
+      try {
+        const data = JSON.parse(message.toString());
+        renderSchedules(data);
+        logAction('sched', `Schedule list received — <strong>${(data.schedules||data).length}</strong> entries`);
+      } catch(e){
+        logAction('sys', 'Schedule parse error: ' + e.message);
+      }
+    }
+  });
 }
 
-/* ─── PUMP / PLUG CONTROLS (unchanged) ─── */
+function publish(obj){
+  if(!mqttReady || !mqttClient){ alert("MQTT not ready"); return; }
+  mqttClient.publish(CMD_TOPIC, JSON.stringify(obj));
+}
+
+/* ═══════════════════════════════════════
+   PUMP / PLUG CONTROLS
+═══════════════════════════════════════ */
 const PUMP_NAMES = {1:'Pump 1 (Nutrient A)', 2:'Pump 2 (Nutrient B)', 3:'Pump 3 (pH Adjust)'};
 const PLUG_NAMES = {1:'AC Plug 1', 2:'AC Plug 2'};
 
@@ -1584,22 +1939,18 @@ function addNow(p){
    SCHEDULER FUNCTIONS (FIXED FOR ESP32)
 ═══════════════════════════════════════ */
 
-/* Relay number to label mapping */
 const RELAY_NAMES = {
   1:'Pump 1 (Nutrient A)', 2:'Pump 2 (Nutrient B)', 3:'Pump 3 (pH Adjust)',
   4:'AC Plug 1', 5:'AC Plug 2'
 };
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-/* Auto-increment ID tracker */
 let nextSchedId = 1;
 
-/* Toggle day button */
 function toggleDay(btn){
   btn.classList.toggle('day-active');
 }
 
-/* Read day bitmask from picker */
 function getDaysMask(){
   let mask = 0;
   document.querySelectorAll('#dayPicker .day-btn').forEach(btn => {
@@ -1610,25 +1961,21 @@ function getDaysMask(){
   return mask;
 }
 
-/* Reset day picker to all active */
 function resetDayPicker(){
   document.querySelectorAll('#dayPicker .day-btn').forEach(btn => {
     btn.classList.add('day-active');
   });
 }
 
-/* Populate action select based on device type */
 function onSchedDeviceChange(){
   const dev    = parseInt(document.getElementById('schedDevice').value);
   const action = document.getElementById('schedAction');
   const amtWrap= document.getElementById('schedAmountWrap');
 
   if(dev >= 1 && dev <= 3){
-    // pump
     action.innerHTML = '<option value="dose">Dose</option>';
     amtWrap.style.display = '';
   } else {
-    // plug
     action.innerHTML =
       '<option value="on">Turn ON</option>' +
       '<option value="off">Turn OFF</option>';
@@ -1643,14 +1990,12 @@ function onSchedActionChange(){
   amtWrap.style.display = (dev >= 1 && dev <= 3 && action === 'dose') ? '' : 'none';
 }
 
-/* Request schedule list from ESP */
 function requestSchedules(){
   if(!mqttReady){ logAction('sys','MQTT not ready — cannot fetch schedules'); return; }
   publish({cmd:"schedule_list"});
   logAction('sched', 'Schedule list requested from ESP...');
 }
 
-/* Add a new schedule — sends ESP-compatible format */
 function addSchedule(){
   const relay  = parseInt(document.getElementById('schedDevice').value);
   const time   = document.getElementById('schedTime').value;
@@ -1664,12 +2009,10 @@ function addSchedule(){
   const isPump = (relay >= 1 && relay <= 3);
   if(isPump && action === 'dose' && !amount){ alert('Please enter ml amount'); return; }
 
-  /* Parse time string "HH:MM" */
   const parts = time.split(':');
   const hour   = parseInt(parts[0]);
   const minute = parseInt(parts[1]);
 
-  /* Build ESP-compatible payload */
   const payload = {
     cmd:    "schedule_add",
     id:     nextSchedId++,
@@ -1693,33 +2036,26 @@ function addSchedule(){
   const actLabel  = isPump ? `Dose ${amount}ml` : action.toUpperCase();
   logAction('sched', `Schedule added — <strong>${devLabel}</strong> @ ${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')} → ${actLabel}`);
 
-  /* Clear form */
   document.getElementById('schedTime').value   = '';
   document.getElementById('schedAmount').value = '';
   resetDayPicker();
 
-  /* Refresh list after short delay */
   setTimeout(requestSchedules, 600);
 }
 
-/* Delete a schedule by ID */
 function deleteSchedule(id){
   publish({cmd:"schedule_delete", id:id});
   logAction('sched', `Schedule <strong>#${id}</strong> deleted`);
   setTimeout(requestSchedules, 600);
 }
 
-/* Render the schedule table from ESP data */
 function renderSchedules(data){
-  /* Accept either {schedules:[...]} or [...] directly */
   const list = Array.isArray(data) ? data : (data.schedules || []);
 
-  /* Track highest ID for auto-increment */
   list.forEach(s => {
     if(s.id && s.id >= nextSchedId) nextSchedId = s.id + 1;
   });
 
-  /* Update count badge */
   const countEl = document.getElementById('schedCount');
   countEl.textContent = list.length + (list.length === 1 ? ' Schedule' : ' Schedules');
 
@@ -1743,10 +2079,8 @@ function renderSchedules(data){
     const devLabel = RELAY_NAMES[relay] || ('Relay ' + relay);
     const devIcon  = isPump ? '⟳' : '⚡';
 
-    /* Time display */
     const timeStr = String(s.hour||0).padStart(2,'0') + ':' + String(s.minute||0).padStart(2,'0');
 
-    /* Days display */
     const daysMask = s.days !== undefined ? s.days : 127;
     let daysHtml = '';
     for(let d = 0; d < 7; d++){
@@ -1754,7 +2088,6 @@ function renderSchedules(data){
       daysHtml += `<span class="sched-day-chip ${active ? 'active' : 'inactive'}">${DAY_LABELS[d][0]}${DAY_LABELS[d][1]}</span>`;
     }
 
-    /* Action display */
     let actClass, actIcon, actLabel;
     if(isPump){
       actClass = 'dose'; actIcon = '💧'; actLabel = 'Dose';
@@ -1764,7 +2097,6 @@ function renderSchedules(data){
       actClass = 'off'; actIcon = '○';  actLabel = 'OFF';
     }
 
-    /* Amount cell */
     const amountCell = (isPump && s.ml !== undefined)
       ? `<span class="sched-amount">${s.ml} ml</span>`
       : `<span style="color:var(--t4)">—</span>`;
