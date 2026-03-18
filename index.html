@@ -1468,11 +1468,11 @@ input::placeholder, .sched-input::placeholder { color:var(--t3); font-size:12.5p
 
     <div class="login-field">
       <label>Email</label>
-      <input id="loginEmail" type="email" placeholder="you@company.com" autocomplete="email">
+      <input id="loginEmail" type="email" placeholder="you@company.com" autocomplete="off">
     </div>
     <div class="login-field">
       <label>Password</label>
-      <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password">
+      <input id="loginPass" type="password" placeholder="••••••••" autocomplete="off">
     </div>
 
     <button class="btn-login" id="btnLogin" onclick="doLogin()">Sign In</button>
@@ -1947,11 +1947,23 @@ function showLoginError(msg){
 }
 
 async function doLogout(){
+  /* Disconnect MQTT */
   if(mqttClient && mqttClient.connected){
     mqttClient.end();
   }
   mqttClient = null;
   mqttReady = false;
+  deviceOnline = false;
+  currentUser = null;
+  currentRole = 'user';
+  userDevices = [];
+  activeDevice = null;
+
+  /* Clear login form fields */
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('loginPass').value = '';
+
+  /* Sign out from Firebase */
   await auth.signOut();
 }
 
@@ -2012,7 +2024,9 @@ function showLogin(){
   document.getElementById('appMain').style.display = 'none';
   document.getElementById('btnLogin').disabled = false;
   document.getElementById('btnLogin').textContent = 'Sign In';
+  document.getElementById('loginEmail').value = '';
   document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').classList.remove('show');
 }
 
 function showApp(){
@@ -2156,7 +2170,7 @@ function connectMQTTForDevice(deviceId){
         badge.querySelector('.status-text').innerText = "Device Offline";
         badge.classList.remove("connected","disconnected");
         badge.classList.add("device-offline");
-        logAction('sys', '🔴 Device is <strong>OFFLINE</strong>');
+        logAction('sys', '🔴 Device is <strong>OFFLINE</strong> (no availability message received)');
       }
     }, 5000);
 
